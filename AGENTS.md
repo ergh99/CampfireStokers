@@ -105,6 +105,14 @@ lua5.1 tests/run_tests.lua
 npx wow-secret-lint . --strict
 ```
 
+`.vscode/settings.json` points the Lua language server at the `ketho.wow-api`
+annotations and disables the standard-library globals (`io`, `os`,
+`package`, `require`, etc.) that don't exist in the client's sandbox, so a
+typo'd WoW API name gets a red squiggle while editing, not just at CI time.
+`tests/.luarc.json` re-enables those for the `tests/` subtree specifically,
+since that code runs under a real Lua interpreter with the full standard
+library, not inside the client.
+
 All four run in CI on every push (`.github/workflows/ci.yml`). The
 `wow-secret-lint` step is pinned to a commit SHA, not a floating tag, so a
 new release of the linter can't silently change what CI enforces.

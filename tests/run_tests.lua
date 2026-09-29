@@ -6,6 +6,7 @@ package.path = "tests/?.lua;" .. package.path
 local SPEC_FILES = {
     "core_smoke_spec",
     "data_spec",
+    "tree_spec",
 }
 
 local total, failed = 0, 0
