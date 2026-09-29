@@ -2,11 +2,15 @@ std = "lua51"
 
 max_line_length = false
 
--- Real globals this addon defines. Keep this list to exactly what the TOC
--- and SavedVariables declare; see AGENTS.md, "Lua 5.1 and no-globals rules".
+-- Real globals this addon defines. Each one is required by name by a
+-- specific WoW API convention (SavedVariables, AddonCompartmentFunc, or the
+-- SLASH_x/N slash-command registration); see AGENTS.md, "Lua 5.1 and
+-- no-globals rules".
 globals = {
     "CampfireStokersDB",
     "CampfireStokers_OnAddonCompartmentClick",
+    "SLASH_CAMPFIRESTOKERS1",
+    "SLASH_CAMPFIRESTOKERS2",
 }
 
 -- WoW API globals this addon reads, added one at a time as modules start
@@ -24,4 +28,8 @@ read_globals = {
     "C_Secrets",
     "C_UnitAuras",
     "canaccessvalue",
+
+    -- Launcher.lua
+    "SlashCmdList",
+    "AddonCompartmentFrame",
 }

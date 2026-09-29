@@ -1,5 +1,7 @@
 local loadModule = require("support.load_module")
 
+require("support.wow_stub").install()
+
 local MODULES = {
     "Data", "Tree", "Send", "Detection", "UI", "Options", "Launcher", "Core",
 }

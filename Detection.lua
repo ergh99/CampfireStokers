@@ -68,6 +68,12 @@ function CS.Detection.Refresh(options)
     setState(CS.Detection.EvaluateState(options))
 end
 
+-- Forces a state and announces it, bypassing EvaluateState entirely, so the
+-- panel (and T6's self-test) can be exercised without a real campfire.
+function CS.Detection.Simulate(atFire)
+    setState(atFire and true or false)
+end
+
 -- Creates (or wires up an injected) event frame. UNIT_AURA is registered
 -- for the player only via RegisterUnitEvent; PLAYER_ENTERING_WORLD is a
 -- core event and always succeeds. ADDON_RESTRICTION_STATE_CHANGED is not a

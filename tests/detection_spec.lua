@@ -95,6 +95,21 @@ tests["Refresh does not re-announce when the state hasn't changed"] = function()
     assert(#seen == 0, "starting state is already false; no change should be announced")
 end
 
+tests["Simulate forces a state and announces it without touching real WoW state"] = function()
+    local CS = loadDetection()
+    local seen = {}
+    CS.Detection.RegisterStateChangedCallback(function(atFire)
+        table.insert(seen, atFire)
+    end)
+
+    CS.Detection.Simulate(true)
+    CS.Detection.Simulate(true)
+    CS.Detection.Simulate(false)
+
+    assert(#seen == 2, "only actual changes should announce")
+    assert(seen[1] == true and seen[2] == false)
+end
+
 -- Event registration
 
 local function makeFakeFrame(failingEvents)

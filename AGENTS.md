@@ -16,12 +16,16 @@ implementing.
   The client passes the *same* `CS` table to every file in the TOC's load
   order, so this is the only inter-module namespace: don't invent a second
   one.
-- Two globals are allowed, both declared in `.luacheckrc`'s `globals` list
-  and nowhere else: `CampfireStokersDB` (the TOC's `SavedVariables` table)
-  and `CampfireStokers_OnAddonCompartmentClick` (the TOC's
-  `AddonCompartmentFunc` handler, which the client requires to be a real
-  global function name). Adding any other global is a lint failure, not a
-  judgment call.
+- Only the globals declared in `.luacheckrc`'s `globals` list may be defined,
+  and each one is there because a specific WoW API convention requires a
+  real global of that exact name: `CampfireStokersDB` (the TOC's
+  `SavedVariables` table), `CampfireStokers_OnAddonCompartmentClick` (the
+  TOC's `AddonCompartmentFunc` handler), and `SLASH_CAMPFIRESTOKERS1` /
+  `SLASH_CAMPFIRESTOKERS2` (the client's slash-command registration, which
+  only recognizes globals named exactly `SLASH_<key><N>`). Adding any other
+  global is a lint failure, not a judgment call; if a new one is genuinely
+  required by a WoW API convention, add it to this list with the same kind
+  of comment.
 - **The WoW client does not validate global names at load time.** Calling a
   misspelled API function is invisible until someone happens to trigger that
   code path in-game. Luacheck is what catches it, at author time, and it can

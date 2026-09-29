@@ -9,6 +9,8 @@ local SPEC_FILES = {
     "tree_spec",
     "send_spec",
     "detection_spec",
+    "core_spec",
+    "launcher_spec",
 }
 
 local total, failed = 0, 0
