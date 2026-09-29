@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.1"
+
+      - uses: leafo/gh-actions-luarocks@v4
+
+      - name: Install Luacheck
+        run: luarocks install luacheck
+
+      - name: luac5.1 syntax check
+        run: |
+          set -e
+          find . -name '*.lua' -not -path './lua_modules/*' -print0 \
+            | xargs -0 -n1 luac5.1 -p
+
+      - name: Luacheck
+        run: luacheck .
+
+      - name: Unit tests
+        run: lua5.1 tests/run_tests.lua
+
+      - name: wow-secret-lint
+        uses: Booyaka101/wow-secret-lint@e59a34337491d40cc53adc504bb2c51c580d20eb # v1.8.0
+        with:
+          path: .
+          args: "--strict"

@@ -1,0 +1,18 @@
+std = "lua51"
+
+max_line_length = false
+
+-- Real globals this addon defines. Keep this list to exactly what the TOC
+-- and SavedVariables declare; see AGENTS.md, "Lua 5.1 and no-globals rules".
+globals = {
+    "CampfireStokersDB",
+    "CampfireStokers_OnAddonCompartmentClick",
+}
+
+-- WoW API globals this addon reads, added one at a time as modules start
+-- calling them. Anything not listed here is flagged as an undefined global,
+-- which is how a typo'd API name gets caught before it ships (the WoW client
+-- itself never rejects a bad global name at load time). See AGENTS.md,
+-- "Adding a WoW API global".
+read_globals = {
+}

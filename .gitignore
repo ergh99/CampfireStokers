@@ -1,0 +1,4 @@
+*.zip
+.release/
+lua_modules/
+.luarocks/

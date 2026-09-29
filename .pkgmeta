@@ -1,0 +1,7 @@
+package-as: CampfireStokers
+
+ignore:
+  - docs
+  - tests
+  - .github
+  - AGENTS.md

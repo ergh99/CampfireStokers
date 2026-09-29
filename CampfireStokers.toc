@@ -1,0 +1,17 @@
+## Interface: 16001
+## Title: Campfire Stokers
+## Notes: One-click access to an editable, categorized tree of conversation-starter phrases, surfaced automatically when you sit at a campfire.
+## Author: CodePoet
+## Version: @project-version@
+## IconTexture: Interface\Icons\Spell_Fire_Fire
+## SavedVariables: CampfireStokersDB
+## AddonCompartmentFunc: CampfireStokers_OnAddonCompartmentClick
+
+Data.lua
+Tree.lua
+Send.lua
+Detection.lua
+UI.lua
+Launcher.lua
+Options.lua
+Core.lua
