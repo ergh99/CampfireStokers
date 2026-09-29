@@ -15,4 +15,7 @@ globals = {
 -- itself never rejects a bad global name at load time). See AGENTS.md,
 -- "Adding a WoW API global".
 read_globals = {
+    -- Send.lua
+    "SendChatMessage",
+    "DoEmote",
 }

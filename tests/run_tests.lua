@@ -7,6 +7,7 @@ local SPEC_FILES = {
     "core_smoke_spec",
     "data_spec",
     "tree_spec",
+    "send_spec",
 }
 
 local total, failed = 0, 0
