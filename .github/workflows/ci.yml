@@ -32,7 +32,13 @@ jobs:
         run: lua5.1 tests/run_tests.lua
 
       - name: wow-secret-lint
+        # TOC-based discovery skips this addon: its Interface line (16001)
+        # isn't recognized as a retail number, so `path: .` reports "found
+        # 1 .toc file(s), none targeting retail; nothing to check" and
+        # exits 0 without scanning anything. Pointing it at the module
+        # files directly bypasses that discovery and scans for real
+        # (confirmed locally: filesScanned: 8, matching the module count).
         uses: Booyaka101/wow-secret-lint@e59a34337491d40cc53adc504bb2c51c580d20eb # v1.8.0
         with:
-          path: .
+          path: "Core.lua Data.lua Detection.lua Launcher.lua Options.lua Send.lua Tree.lua UI.lua"
           args: "--strict"

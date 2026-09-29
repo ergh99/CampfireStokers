@@ -8,6 +8,7 @@ local SPEC_FILES = {
     "data_spec",
     "tree_spec",
     "send_spec",
+    "detection_spec",
 }
 
 local total, failed = 0, 0

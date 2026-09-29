@@ -18,4 +18,10 @@ read_globals = {
     -- Send.lua
     "SendChatMessage",
     "DoEmote",
+
+    -- Detection.lua
+    "CreateFrame",
+    "C_Secrets",
+    "C_UnitAuras",
+    "canaccessvalue",
 }

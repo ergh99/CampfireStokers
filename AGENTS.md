@@ -117,13 +117,19 @@ All four run in CI on every push (`.github/workflows/ci.yml`). The
 `wow-secret-lint` step is pinned to a commit SHA, not a floating tag, so a
 new release of the linter can't silently change what CI enforces.
 
-Detection.lua, UI.lua, Options.lua and Launcher.lua are exercised manually in
-the client, not by the headless suite — WoWUnit is used for that in-client
-exploratory/self-test work (see the self-test and simulate-campfire
-subcommands added in the "in-client verification" milestone). If you add a
-WoWUnit test group, list it in `## OptionalDeps: WoWUnit` in the TOC, guard
-its registration on WoWUnit being loaded, and don't let its presence change
-any production code path.
+Detection.lua's secret-value guard (`EvaluateState`) and its event
+registration (`CreateEventFrame`) are headless-tested too, with
+`C_Secrets`/`C_UnitAuras`/`canaccessvalue` and the frame itself passed in as
+mocks (see `tests/detection_spec.lua`) rather than assumed missing — only
+the real client behavior behind those mocks (does `GetPlayerAuraBySpellID`
+actually behave this way, does registering an unknown event actually throw)
+is unverified until T6. UI.lua, Options.lua and Launcher.lua are exercised
+manually in the client, not by the headless suite — WoWUnit is used for
+that in-client exploratory/self-test work (see the self-test and
+simulate-campfire subcommands added in the "in-client verification"
+milestone). If you add a WoWUnit test group, list it in
+`## OptionalDeps: WoWUnit` in the TOC, guard its registration on WoWUnit
+being loaded, and don't let its presence change any production code path.
 
 Releasing: push an annotated tag matching `v*` (e.g. `v0.1.0`).
 `.github/workflows/release.yml` runs the BigWigs packager, which builds a
@@ -131,8 +137,11 @@ zip named `CampfireStokers` (per `.pkgmeta`'s `package-as`) with `@project-versi
 in the TOC substituted for the tag, and attaches it to a GitHub Release.
 Nothing under `docs/`, `tests/`, `.github/`, or `AGENTS.md` ships in the zip.
 
-**Known open item**: the current Forever Interface number (16001) is
-non-standard relative to retail's numbering. `wow-secret-lint` auto-discovers
-addons via the TOC; verify on the first real CI run that it actually scans
-this addon rather than skipping it as non-retail. If it skips, point the
-`path` input in `ci.yml` at the Lua files directly instead of `.`.
+**Resolved item**: `wow-secret-lint`'s TOC-based discovery does skip this
+addon — confirmed locally (`npx wow-secret-lint@1.8.0 . --strict` reports
+"found 1 .toc file(s), none targeting retail; nothing to check" and exits
+0, because the 16001 Interface line isn't recognized as retail). `ci.yml`'s
+`path` input therefore lists the module files directly rather than `.`;
+that scans them for real (`filesScanned: 8` in `--format json`, 0 findings).
+If a new module file is added to the TOC's load order, add it to that
+`path` list too, or the linter silently won't see it.
