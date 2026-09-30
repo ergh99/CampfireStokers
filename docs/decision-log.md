@@ -114,3 +114,23 @@ remain open, to be checked alongside T7's manual verification.
   (`Options.lua` refreshes its editor in place).
 
 Only `%t` substitution remains open.
+
+## 2026-09-30 — `%t` substitution verified, closing T6/T7
+
+Tested via a temporarily injected `%t` phrase (`/run
+table.insert(CampfireStokersDB.tree[1].children, {...})` + `/reload`, per
+instructions given in this session, since Options.lua doesn't exist yet to
+add one through the UI):
+
+- With no target selected, the phrase row renders gray/disabled.
+- With a target selected, the row renders white/enabled, live, without
+  needing a reload (`PLAYER_TARGET_CHANGED` re-check confirmed working).
+- Sending it substitutes the target's name correctly.
+
+**Closed, no issues, no code change.** `UI.lua`'s `ContainsTargetToken` +
+`applyRowState` gating and the client's own `%t` substitution both work as
+designed.
+
+This closes every check from T6's self-test and T7's manual verification
+list: all either `pass`, or `fail`-but-understood-and-accepted (the one
+aura-secrecy finding above), or confirmed manually with no issues.
