@@ -324,6 +324,12 @@ function CS.Options.CreateCanvas()
 
     canvas = CreateFrame("Frame", "CampfireStokersOptionsCanvas", UIParent)
     canvas.name = CS.Data.L.ui_options_title
+    -- A freshly created frame starts shown. Without this, the Settings
+    -- system's later :Show() when you navigate here is a no-op (it's
+    -- already shown), so OnShow below never fires and Refresh() never
+    -- runs - which is exactly why the row list rendered empty even though
+    -- CampfireStokersDB.tree already had the default categories in it.
+    canvas:Hide()
 
     local title = canvas:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", canvas, "TOPLEFT", 16, -16)

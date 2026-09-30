@@ -161,3 +161,34 @@ Re-verify Add Category, Add Phrase, Rename, and Edit Text all work
 end-to-end (popup shows pre-filled text where expected, typing and
 accepting actually applies the change) now that the EditBox reference is
 correct.
+
+## 2026-09-30 — T8 manual verification: empty row list, canvas never hidden
+
+The same screenshot that caught the `EditBox` bug also showed something
+easy to miss next to it: the options canvas rendered its top controls
+(Add Category, Reset to Defaults, Restore Missing Defaults, the delay
+field) correctly, registered under Settings → AddOns correctly, but the
+row list below was completely empty — no category rows at all, even
+though `CampfireStokersDB.tree` already had the five default categories
+by the time the canvas could possibly be shown (`Core.lua` bootstraps it
+before calling `CS.Options.CreateCanvas()`).
+
+**Root cause**: `CS.Options.CreateCanvas()` never called `canvas:Hide()`
+after creating the frame — unlike `UI.lua`'s `CreatePanel()`, which does.
+A freshly created frame starts shown. `CS.Options.Refresh()` only runs
+from the canvas's `OnShow` script, which only fires on an actual
+hidden-to-shown *transition*; since the canvas's own `:IsShown()` was
+already `true` from creation, the Settings system's later `:Show()` call
+(when you navigate to the category) was a no-op as far as the frame's own
+show state is concerned, so `OnShow` — and therefore `Refresh()` — never
+fired.
+
+**Design decision: fixed, added `canvas:Hide()` immediately after
+creating the frame**, matching `UI.lua`'s pattern. This is a general
+lesson for this codebase, not just an Options.lua quirk: any frame whose
+content is built lazily on `OnShow` must start hidden, or that lazy build
+silently never happens. Worth keeping in mind for any future frame using
+this pattern.
+
+Re-verify: reopening the options canvas now shows all five default
+categories with their phrases, matching the campfire panel.
