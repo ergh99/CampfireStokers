@@ -4,11 +4,11 @@ local CS = select(2, ...)
 CS.UI = CS.UI or {}
 
 local AUTO_OPEN_DEFAULT_DELAY = 300 -- seconds; CampfireStokersDB.autoOpenDelay overrides
-local ROW_HEIGHT = 20
+local ROW_HEIGHT = 22
 local ROW_INDENT = 14
 local CATEGORY_GAP = 6
-local PANEL_WIDTH = 300
-local TOP_CONTROLS_HEIGHT = 58
+local PANEL_WIDTH = 460
+local TOP_CONTROLS_HEIGHT = 62
 local HIGHLIGHT_DURATION = 0.15
 
 local frame
@@ -42,7 +42,7 @@ local function acquireRow()
         row.collapseIcon:SetPoint("LEFT", row, "LEFT", 2, 0)
         row.collapseIcon:SetHighlightTexture("Interface/Buttons/UI-PlusButton-Hilight", "ADD")
 
-        row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         row.text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
         row.text:SetJustifyH("LEFT")
     end
@@ -52,7 +52,7 @@ local function acquireRow()
     row.text:ClearAllPoints()
     row.text:SetPoint("LEFT", row, "LEFT", 4, 0)
     row.text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-    row.text:SetFontObject("GameFontNormalSmall")
+    row.text:SetFontObject("GameFontHighlight")
     row.text:SetTextColor(1, 1, 1)
     row.phrase = nil
     row.needsTarget = nil
@@ -119,7 +119,7 @@ local function showRowTooltip(row)
     if not row.tooltipText then
         return
     end
-    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    GameTooltip:SetOwner(row, "ANCHOR_CURSOR_RIGHT")
     GameTooltip:SetText(row.tooltipText, nil, nil, nil, nil, true)
     GameTooltip:Show()
 end
@@ -193,7 +193,7 @@ function CS.UI.Refresh()
         headerRow.text:ClearAllPoints()
         headerRow.text:SetPoint("LEFT", headerRow.collapseIcon, "RIGHT", 4, 0)
         headerRow.text:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
-        headerRow.text:SetFontObject("GameFontNormal")
+        headerRow.text:SetFontObject("GameFontNormalLarge")
         headerRow.text:SetTextColor(1, 0.82, 0) -- WoW's standard header gold
         headerRow.text:SetText(category.name)
         headerRow:SetScript("OnClick", function()
@@ -519,7 +519,7 @@ function CS.UI.CreatePanel()
     titleText:SetText(CS.Data.L.ui_panel_title)
 
     local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -6)
     closeButton:SetScript("OnClick", CS.UI.Hide)
 
     -- Say/Yell as a two-state segmented control (both options always

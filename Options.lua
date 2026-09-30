@@ -3,10 +3,12 @@ local CS = select(2, ...)
 ---@class CampfireStokersOptions
 CS.Options = CS.Options or {}
 
-local ROW_HEIGHT = 24
+local ROW_HEIGHT = 26
 local ROW_INDENT = 16
 local CATEGORY_GAP = 8
 local BUTTON_HEIGHT = 20
+local BUTTON_WIDTH = 76
+local WIDE_BUTTON_WIDTH = 100
 local DESTRUCTIVE_GAP = 16 -- extra space before Delete, vs. 4px between safe actions
 
 local canvas
@@ -57,7 +59,7 @@ local function acquireRow()
         row.collapseIcon:SetPoint("LEFT", row.dragHandle, "RIGHT", 4, 0)
         row.collapseIcon:SetHighlightTexture("Interface/Buttons/UI-PlusButton-Hilight", "ADD")
 
-        row.label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         row.label:SetJustifyH("LEFT")
 
         row.button1 = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
@@ -80,16 +82,38 @@ local function acquireRow()
         -- the row under the cursor keeps the list scannable while still
         -- making every control fully discoverable and reachable, not
         -- hidden behind a keyboard shortcut or menu.
-        row:SetScript("OnEnter", function(self)
-            for _, widget in ipairs(self.hoverWidgets or {}) do
-                widget:Show()
+        --
+        -- Hooking the SAME update onto every button's own OnEnter/OnLeave
+        -- (not just the row's) matters: once a button is shown, moving the
+        -- cursor onto it makes it the topmost frame at that pixel, so the
+        -- row itself fires OnLeave even though the cursor never actually
+        -- left the row's area. Without this, that OnLeave hides the
+        -- buttons, which puts the cursor back over the bare row, which
+        -- fires OnEnter again, showing them again - a rapid show/hide
+        -- flicker the instant you try to actually reach a button.
+        -- :IsMouseOver() on the whole group is checked fresh each time
+        -- instead of trusting which single widget's event just fired.
+        local function updateHover()
+            local hovered = row:IsMouseOver()
+                or row.button1:IsMouseOver()
+                or row.button2:IsMouseOver()
+                or row.button3:IsMouseOver()
+            for _, widget in ipairs(row.hoverWidgets or {}) do
+                if hovered then
+                    widget:Show()
+                else
+                    widget:Hide()
+                end
             end
-        end)
-        row:SetScript("OnLeave", function(self)
-            for _, widget in ipairs(self.hoverWidgets or {}) do
-                widget:Hide()
-            end
-        end)
+        end
+        row:SetScript("OnEnter", updateHover)
+        row:SetScript("OnLeave", updateHover)
+        row.button1:HookScript("OnEnter", updateHover)
+        row.button1:HookScript("OnLeave", updateHover)
+        row.button2:HookScript("OnEnter", updateHover)
+        row.button2:HookScript("OnLeave", updateHover)
+        row.button3:HookScript("OnEnter", updateHover)
+        row.button3:HookScript("OnLeave", updateHover)
     end
 
     row:ClearAllPoints()
@@ -97,7 +121,7 @@ local function acquireRow()
     row.collapseIcon:Hide()
     row.collapseIcon:SetScript("OnClick", nil)
     row.label:ClearAllPoints()
-    row.label:SetFontObject("GameFontNormalSmall")
+    row.label:SetFontObject("GameFontHighlight")
     row.label:SetTextColor(1, 1, 1)
     row.button1:ClearAllPoints()
     row.button1:Hide()
@@ -128,7 +152,7 @@ local function layoutCategoryRow(row, category, y)
     row:SetPoint("RIGHT", canvas.rowContainer, "RIGHT", 0, 0)
 
     row.button1:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-    row.button1:SetWidth(70)
+    row.button1:SetWidth(BUTTON_WIDTH)
     row.button1:SetText(CS.Data.L.ui_delete)
     row.button1:SetScript("OnClick", function()
         StaticPopup_Show("CAMPFIRESTOKERS_DELETE_CATEGORY_CONFIRM", category.name, nil, {
@@ -140,7 +164,7 @@ local function layoutCategoryRow(row, category, y)
     -- Phrase) so this destructive action isn't immediately adjacent to
     -- safe ones - reduces the cost of a misclick.
     row.button2:SetPoint("RIGHT", row.button1, "LEFT", -DESTRUCTIVE_GAP, 0)
-    row.button2:SetWidth(70)
+    row.button2:SetWidth(BUTTON_WIDTH)
     row.button2:SetText(CS.Data.L.ui_rename)
     row.button2:SetScript("OnClick", function()
         CS.UI.PromptForText({
@@ -159,7 +183,7 @@ local function layoutCategoryRow(row, category, y)
     end)
 
     row.button3:SetPoint("RIGHT", row.button2, "LEFT", -4, 0)
-    row.button3:SetWidth(90)
+    row.button3:SetWidth(WIDE_BUTTON_WIDTH)
     row.button3:SetText(CS.Data.L.ui_add_phrase)
     row.button3:SetScript("OnClick", function()
         CS.UI.PromptForText({
@@ -200,7 +224,7 @@ local function layoutCategoryRow(row, category, y)
 
     row.label:SetPoint("LEFT", row.collapseIcon, "RIGHT", 4, 0)
     row.label:SetPoint("RIGHT", row.button3, "LEFT", -8, 0)
-    row.label:SetFontObject("GameFontNormal")
+    row.label:SetFontObject("GameFontNormalLarge")
     row.label:SetTextColor(1, 0.82, 0) -- WoW's standard header gold
     row.label:SetText(category.name)
     row.hoverWidgets = { row.dragHandle, row.button1, row.button2, row.button3 }
@@ -221,7 +245,7 @@ local function layoutPhraseRow(row, phrase, y)
     row:SetPoint("RIGHT", canvas.rowContainer, "RIGHT", 0, 0)
 
     row.button1:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-    row.button1:SetWidth(70)
+    row.button1:SetWidth(BUTTON_WIDTH)
     row.button1:SetText(CS.Data.L.ui_delete)
     row.button1:SetScript("OnClick", function()
         CS.Tree.Delete(CampfireStokersDB, phrase.id)
@@ -234,7 +258,7 @@ local function layoutPhraseRow(row, phrase, y)
     -- spacing rather than a confirmation popup, to keep routine cleanup
     -- from requiring a dialog click every time.
     row.button2:SetPoint("RIGHT", row.button1, "LEFT", -DESTRUCTIVE_GAP, 0)
-    row.button2:SetWidth(70)
+    row.button2:SetWidth(BUTTON_WIDTH)
     row.button2:SetText(CS.Data.L.ui_edit)
     row.button2:SetScript("OnClick", function()
         CS.UI.PromptForText({
