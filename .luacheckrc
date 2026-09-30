@@ -32,4 +32,11 @@ read_globals = {
     -- Launcher.lua
     "SlashCmdList",
     "AddonCompartmentFrame",
+
+    -- UI.lua
+    "UIParent",
+    "DEFAULT_CHAT_FRAME",
+    "C_Timer",
+    "UnitExists",
+    "GetTime",
 }

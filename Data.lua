@@ -34,6 +34,9 @@ local L = {
 
     emotes_salute = "/salute",
     emotes_warmfire = "/e warms their weary bones by the fire.",
+
+    ui_say = "Say",
+    ui_yell = "Yell",
 }
 
 CS.Data.L = L

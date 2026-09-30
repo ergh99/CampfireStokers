@@ -7,10 +7,26 @@ local tests = {}
 -- has already populated CS. Mirror that load order here, with a fake frame
 -- captured so the test can fire ADDON_LOADED itself instead of waiting for
 -- a real client.
+-- CS.UI.CreatePanel() builds a full frame tree (backdrops, font strings,
+-- button templates) that's far beyond what the minimal fake frame here
+-- models - that stays a manual, in-client check (see AGENTS.md). Core.lua
+-- is only responsible for calling it and wiring its callback, so CS.UI is
+-- stubbed to verify exactly that wiring.
+local function makeUIStub()
+    local ui = { createPanelCalls = 0, stateChanges = {} }
+    ui.CreatePanel = function()
+        ui.createPanelCalls = ui.createPanelCalls + 1
+    end
+    ui.OnCampfireStateChanged = function(atFire)
+        table.insert(ui.stateChanges, atFire)
+    end
+    return ui
+end
+
 local function loadCoreWithDependencies()
     local capturedFrame
 
-    local CS = {}
+    local CS = { UI = makeUIStub() }
     loadModule("Data.lua", "CampfireStokers", CS)
     loadModule("Tree.lua", "CampfireStokers", CS)
     loadModule("Send.lua", "CampfireStokers", CS)
@@ -58,7 +74,12 @@ tests["ADDON_LOADED for this addon bootstraps CampfireStokersDB and wires Detect
 
     assert(type(_G.CampfireStokersDB) == "table")
     assert(#_G.CampfireStokersDB.tree == 5, "bootstrap should have deep-copied DefaultTree in")
+    assert(CS.UI.createPanelCalls == 1, "Core.lua must create the panel exactly once on load")
     assert(CS.Detection.atFire == false, "no aura mocked, so the initial Refresh should leave it false")
+
+    CS.Detection.Simulate(true)
+    assert(#CS.UI.stateChanges == 1 and CS.UI.stateChanges[1] == true,
+        "Core.lua must register CS.UI.OnCampfireStateChanged as Detection's callback")
 end
 
 return tests

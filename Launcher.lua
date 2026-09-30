@@ -3,7 +3,7 @@ local CS = select(2, ...)
 CS.Launcher = CS.Launcher or {}
 
 function CampfireStokers_OnAddonCompartmentClick(_addonName, _buttonName, _menuButtonFrame)
-    -- Toggling the real panel is T9's job, once UI.lua (T7) exists.
+    CS.UI.Toggle()
 end
 
 -- T6's in-client verification checks. Each returns ("pass" | "fail" |
@@ -163,8 +163,7 @@ local function handleSlashCommand(msg)
     elseif command == "simulate" then
         runSimulate(rest)
     elseif command == "" then
-        print("Campfire Stokers: no panel yet (coming in a later milestone). "
-            .. "Try /campfire selftest or /campfire simulate on|off.")
+        CS.UI.Toggle()
     else
         print("Campfire Stokers: unknown command '" .. command .. "'. Try selftest or simulate on|off.")
     end

@@ -128,9 +128,17 @@ registration (`CreateEventFrame`) are headless-tested too, with
 mocks (see `tests/detection_spec.lua`) rather than assumed missing — only
 the real client behavior behind those mocks (does `GetPlayerAuraBySpellID`
 actually behave this way, does registering an unknown event actually throw)
-is unverified until T6. UI.lua, Options.lua and Launcher.lua are exercised
-manually in the client, not by the headless suite — WoWUnit is used for
-that in-client exploratory/self-test work (see the self-test and
+is unverified until T6. The same goes for Core.lua's ADDON_LOADED wiring
+(`tests/core_spec.lua`, with `CS.UI` stubbed rather than loaded for real)
+and Launcher.lua's command routing and selftest checks
+(`tests/launcher_spec.lua`, using `tests/support/wow_stub.lua`'s minimal
+`CreateFrame`/`SlashCmdList`). What stays manual, in-client only, is
+anything that needs a real frame tree - UI.lua's actual panel construction
+(`CreatePanel`) and Options.lua's editor - since mocking backdrops, font
+strings, and button templates well enough to exercise those for real isn't
+worth it; only UI.lua's one pure helper (`ShouldAutoOpen`) is headless-
+tested (`tests/ui_spec.lua`). WoWUnit is used for that in-client
+exploratory/self-test work (see the self-test and
 simulate-campfire subcommands added in the "in-client verification"
 milestone). If you add a WoWUnit test group, list it in
 `## OptionalDeps: WoWUnit` in the TOC, guard its registration on WoWUnit

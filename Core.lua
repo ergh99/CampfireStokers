@@ -12,12 +12,8 @@ frame:SetScript("OnEvent", function(_, event, loadedAddonName)
 
     CampfireStokersDB = CS.Tree.Bootstrap(CampfireStokersDB)
 
-    -- Placeholder until UI.lua (T7) registers the real panel show/hide
-    -- callback; gives the T6 selftest/simulate commands visible feedback
-    -- in the meantime.
-    CS.Detection.RegisterStateChangedCallback(function(atFire)
-        print("Campfire Stokers: " .. (atFire and "at a campfire." or "left the campfire."))
-    end)
+    CS.UI.CreatePanel()
+    CS.Detection.RegisterStateChangedCallback(CS.UI.OnCampfireStateChanged)
 
     CS.Detection.CreateEventFrame()
     CS.Detection.Refresh()

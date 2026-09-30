@@ -7,6 +7,7 @@ local function loadLauncher()
     wowStub.install()
     local CS = {
         Detection = { CAMPFIRE_SPELL_ID = 0, Simulate = function() end },
+        UI = { Toggle = function() end },
     }
     loadModule("Launcher.lua", "CampfireStokers", CS)
     return CS
@@ -30,6 +31,18 @@ end
 tests["Launcher.lua defines the addon compartment click handler"] = function()
     loadLauncher()
     assert(type(CampfireStokers_OnAddonCompartmentClick) == "function")
+end
+
+tests["the addon compartment click handler toggles the panel"] = function()
+    local CS = loadLauncher()
+    local toggled = 0
+    CS.UI.Toggle = function()
+        toggled = toggled + 1
+    end
+
+    CampfireStokers_OnAddonCompartmentClick("CampfireStokers", "CampfireStokers", nil)
+
+    assert(toggled == 1)
 end
 
 tests["selftest runs every check and prints a verdict line for each"] = function()
@@ -76,13 +89,17 @@ tests["simulate on/off calls Detection.Simulate with the right boolean"] = funct
     assert(seen[1] == true and seen[2] == false)
 end
 
-tests["no arguments prints a friendly message instead of erroring"] = function()
-    loadLauncher()
-    local lines, restore = capturePrints()
+tests["no arguments toggles the panel instead of erroring"] = function()
+    local CS = loadLauncher()
+    local toggled = 0
+    CS.UI.Toggle = function()
+        toggled = toggled + 1
+    end
+
     local ok = pcall(SlashCmdList.CAMPFIRESTOKERS, "")
-    restore()
+
     assert(ok == true)
-    assert(#lines == 1)
+    assert(toggled == 1)
 end
 
 tests["an unknown subcommand is reported, not silently ignored"] = function()
