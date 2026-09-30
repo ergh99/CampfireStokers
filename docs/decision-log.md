@@ -286,3 +286,18 @@ to mocked `EMOTE<id>_CMD<n>` globals being present or absent.
 Re-verify: `/salute` should now render normally (not flagged) in both the
 options editor and the campfire panel, and actually clicking it in the
 campfire panel should perform the emote.
+
+**Resolved (2026-09-30, retest)**: confirmed - `/salute` works as expected
+in the campfire panel.
+
+## T8 status: remaining manual checks
+
+Confirmed so far: the canvas renders and registers correctly, all five
+default categories and their phrases render, Add Category works, the
+unsendable-phrase flag works (correctly un-flags `/salute` now that
+detection is fixed).
+
+**Still open, not yet exercised**: drag-and-drop reordering (categories
+and phrases), the 255-character rejection message on Add Phrase/Edit
+Text, Reset to Defaults and Restore Missing Defaults actually applying,
+and confirming a change made in the editor survives `/reload`.
