@@ -2,11 +2,8 @@ local CS = select(2, ...)
 
 CS.Detection = CS.Detection or {}
 
--- Placeholder. T6's self-test confirms the campfire aura's real spell ID
--- in-client and this constant is updated then; 0 is deliberately never a
--- real aura, so until it's corrected the add-on fails closed (never
--- reports "at fire") instead of matching the wrong aura.
-CS.Detection.CAMPFIRE_SPELL_ID = 0
+-- Confirmed in-client during T6 (2026-09-30); see docs/decision-log.md.
+CS.Detection.CAMPFIRE_SPELL_ID = 1229739
 
 CS.Detection.atFire = false
 

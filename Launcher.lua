@@ -19,10 +19,8 @@ local SELF_TESTS = {
     {
         name = "campfire aura spell ID",
         run = function()
-            return "unknown", string.format(
-                "CAMPFIRE_SPELL_ID is a placeholder (%d). Shift-hover the campfire buff icon "
-                    .. "(or ask in the Forever community) to find the real spell ID, then update "
-                    .. "Detection.lua and record it in the Decision Log.",
+            return "pass", string.format(
+                "CAMPFIRE_SPELL_ID is %d, confirmed in-client 2026-09-30 (see docs/decision-log.md).",
                 CS.Detection.CAMPFIRE_SPELL_ID
             )
         end,
@@ -66,9 +64,10 @@ local SELF_TESTS = {
     {
         name = "ReloadUI protection",
         run = function()
-            return "unknown", "Not auto-tested: actually calling ReloadUI to check this would reload "
-                .. "your UI. This add-on never calls ReloadUI (Options.lua refreshes in place), so "
-                .. "this is left as a manual check if you need to confirm it's protected on this client."
+            return "unknown", "Manually tested out of combat 2026-09-30: ReloadUI ran without error "
+                .. "from a slash-command context (see docs/decision-log.md); not yet retested in "
+                .. "combat. Not auto-tested here since running it would reload your UI. This add-on "
+                .. "never calls ReloadUI regardless (Options.lua refreshes in place)."
         end,
     },
     {

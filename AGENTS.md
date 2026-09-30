@@ -1,9 +1,10 @@
 # AGENTS.md
 
 Guidance for anyone (human or AI) making changes to Campfire Stokers. See
-[docs/definition.md](docs/definition.md) for the full design and
+[docs/definition.md](docs/definition.md) for the full design,
 [docs/tasks.md](docs/tasks.md) for the build-order task list this repo is
-implementing.
+implementing, and [docs/decision-log.md](docs/decision-log.md) for findings
+from in-client verification (T6 onward) and the decisions that followed.
 
 ## Lua 5.1 and no-globals rules
 
