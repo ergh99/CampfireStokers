@@ -192,3 +192,38 @@ this pattern.
 
 Re-verify: reopening the options canvas now shows all five default
 categories with their phrases, matching the campfire panel.
+
+## 2026-09-30 — T8 manual verification: row list still empty after the Hide() fix
+
+A second screenshot, after the `canvas:Hide()` fix was committed, showed
+the same empty row list - top controls fine, no rows. Two more issues
+found on closer review, both fixed without waiting for confirmation on
+whether the running client had actually picked up the previous fix
+(`/reload` is required for addon code changes to take effect; that's
+unconfirmed for this screenshot), since both are real, independent
+robustness gaps regardless:
+
+1. **`CreateCanvas()` relied solely on `OnShow` to populate the row list
+   the first time**, unlike `UI.lua`'s `CreatePanel()`, which also calls
+   `CS.UI.Refresh()` once eagerly right after building the frame. Relying
+   only on `OnShow` firing depends on an assumption about
+   `Settings.RegisterCanvasLayoutCategory`'s show/hide behavior that was
+   already flagged as unconfirmed for this build. Fixed: added an eager
+   `CS.Options.Refresh()` call at the end of `CreateCanvas()`, matching
+   `UI.lua`'s proven pattern.
+2. **`canvas.rowContainer:SetWidth(canvas.scrollFrame:GetWidth())` ran
+   once, at creation time** - before the Settings system has necessarily
+   sized `canvas.scrollFrame` - and `SetWidth` freezes a value rather than
+   tracking it live. If `scrollFrame` was still unsized (0 width) at that
+   moment, `rowContainer` would be permanently pinned to 0 width, which
+   would collapse every row (anchored between `rowContainer`'s LEFT and
+   RIGHT) to nothing regardless of whether rows were actually being
+   created. Fixed: moved this into `CS.Options.Refresh()` itself, so the
+   width is re-synced to whatever `scrollFrame`'s current actual width is
+   on every refresh (creation, `OnShow`, and every mutation), not just
+   once.
+
+**Open**: waiting on a retest to confirm which of the three fixes so far
+(canvas:Hide, eager Refresh, live width resync) actually mattered versus
+which were defensive-but-unnecessary. All three are safe to keep
+regardless of which one was the real cause.

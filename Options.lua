@@ -227,6 +227,12 @@ function CS.Options.Refresh()
         return
     end
 
+    -- Re-synced every refresh rather than set once at creation: the
+    -- Settings system may not have sized canvas.scrollFrame yet the first
+    -- time CreateCanvas() runs, and SetWidth freezes a value rather than
+    -- tracking it live, so a one-time set could permanently pin this to 0.
+    canvas.rowContainer:SetWidth(canvas.scrollFrame:GetWidth())
+
     releaseRows()
 
     local categoryRows = {}
@@ -395,7 +401,6 @@ function CS.Options.CreateCanvas()
     canvas.rowContainer = CreateFrame("Frame", nil, canvas.scrollFrame)
     canvas.rowContainer:SetSize(1, 1)
     canvas.scrollFrame:SetScrollChild(canvas.rowContainer)
-    canvas.rowContainer:SetWidth(canvas.scrollFrame:GetWidth())
 
     canvas:SetScript("OnShow", function()
         canvas.delayEditBox:SetText(tostring(CampfireStokersDB.autoOpenDelay))
@@ -416,6 +421,13 @@ function CS.Options.CreateCanvas()
     if not ok then
         print("Campfire Stokers: could not register the options panel (" .. tostring(err) .. ").")
     end
+
+    -- Don't rely solely on OnShow to populate the row list the first time -
+    -- matches UI.lua's CreatePanel, which does the same for the same
+    -- reason: an eager Refresh() here means the content exists regardless
+    -- of whether the Settings system's show/hide behavior for canvas
+    -- categories works the way this code assumes.
+    CS.Options.Refresh()
 
     return canvas
 end
