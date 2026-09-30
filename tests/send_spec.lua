@@ -2,10 +2,19 @@ local loadModule = require("support.load_module")
 
 local tests = {}
 
+-- Confirmed real data 2026-09-30 (see docs/decision-log.md): this is how
+-- Forever actually registers the built-in /salute emote - EMOTE<id>_CMD<n>,
+-- not the classic SLASH_<TOKEN><N> convention.
 local FAKE_EMOTE_GLOBALS = {
-    SLASH_SALUTE1 = "/salute",
-    SLASH_WAVE1 = "/wave",
-    SLASH_WAVE2 = "/wave1",
+    EMOTE79_CMD1 = "/salute",
+    EMOTE79_CMD2 = "/salute",
+}
+
+-- The classic retail convention. Confirmed NOT how Forever registers real
+-- emotes, but SLASH_STOPATTACK1 (a non-emote command) does still exist in
+-- this form on this build, so FindEmoteToken keeps supporting it too.
+local FAKE_CLASSIC_EMOTE_GLOBALS = {
+    SLASH_BOW1 = "/bow",
 }
 
 local function loadSend()
@@ -98,6 +107,13 @@ tests["a built-in emote command ignores any text after it"] = function()
     local CS = loadSend()
     local action = CS.Send.Classify("/salute for the win", { emoteGlobals = FAKE_EMOTE_GLOBALS })
     assert(action.kind == "emote" and action.emoteToken == "SALUTE")
+end
+
+tests["falls back to the classic SLASH_<TOKEN><N> pattern too"] = function()
+    local CS = loadSend()
+    local action = CS.Send.Classify("/bow", { emoteGlobals = FAKE_CLASSIC_EMOTE_GLOBALS })
+    assert(action.kind == "emote")
+    assert(action.emoteToken == "BOW")
 end
 
 tests["a restricted built-in emote is rejected"] = function()

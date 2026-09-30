@@ -130,24 +130,25 @@ local SELF_TESTS = {
         end,
     },
     {
+        -- Calls CS.Send.FindEmoteToken directly against our own shipped
+        -- default /salute phrase, rather than independently re-scanning
+        -- _G with its own copy of the pattern logic. That independent-scan
+        -- approach is exactly how the original version of this check
+        -- shipped green while Send.lua was actually broken: it found
+        -- SLASH_STOPATTACK1 (a real global, just not an emote's) and
+        -- called that good enough, never noticing /salute itself - a
+        -- phrase this add-on ships by default - resolved to nothing. See
+        -- docs/decision-log.md.
         name = "the client's emote command globals",
         run = function()
-            local found
-            for key, value in pairs(_G) do
-                if type(key) == "string" and type(value) == "string"
-                    and key ~= "SLASH_CAMPFIRESTOKERS1" and key ~= "SLASH_CAMPFIRESTOKERS2"
-                    and key:match("^SLASH_%u+%d+$")
-                then
-                    found = key .. " = " .. value
-                    break
-                end
+            local token = CS.Send.FindEmoteToken("/salute")
+            if token then
+                return "pass", "CS.Send.FindEmoteToken('/salute') found '" .. token .. "'. "
+                    .. "The default Emotes > /salute phrase will work."
             end
-            if found then
-                return "pass", "Found at least one emote command global (" .. found .. "). "
-                    .. "Send.lua's FindEmoteToken scan has something to match against."
-            end
-            return "fail", "No SLASH_<TOKEN><N> globals found. Send.lua's built-in emote detection "
-                .. "(e.g. /salute) won't find anything to match; raise this for a design decision."
+            return "fail", "CS.Send.FindEmoteToken('/salute') found nothing. The default Emotes > "
+                .. "/salute phrase (and any other built-in emote phrase) will be flagged unsendable; "
+                .. "raise this for a design decision."
         end,
     },
 }

@@ -227,3 +227,62 @@ robustness gaps regardless:
 (canvas:Hide, eager Refresh, live width resync) actually mattered versus
 which were defensive-but-unnecessary. All three are safe to keep
 regardless of which one was the real cause.
+
+**Resolved (2026-09-30, retest)**: one or more of the three fixes worked -
+the row list now renders all five default categories with their phrases,
+plus a manually-added test category, confirming Add Category works
+end-to-end too.
+
+## 2026-09-30 — Forever's built-in emote registration differs from retail: EMOTE\<id\>\_CMD\<n\>, not SLASH_\<TOKEN\>\<N\>
+
+The same retest screenshot surfaced a real functional bug: the shipped
+default `/salute` phrase rendered flagged/unsendable in the options
+editor. Diagnosed interactively:
+
+- `/run print(SLASH_SALUTE1)` → `nil`. The classic retail convention
+  `Send.lua`'s `FindEmoteToken` was built around doesn't exist for this
+  emote on Forever, even though `/salute` itself works fine when typed.
+- `/run for k,v in pairs(_G) do if type(v)=="string" and v:lower()=="/salute" then print(k.." = "..v) end end`
+  → `EMOTE79_CMD1 = /salute` and `EMOTE79_CMD2 = /salute`. Forever
+  registers built-in emotes under `EMOTE<id>_CMD<n>`, keyed by a numeric
+  emote id (79) with no name-like token anywhere in the key.
+- `/run DoEmote(79)` (the numeric id, as a guess at what changed) → no
+  effect, no error. `/run DoEmote("SALUTE")` (the classic uppercase name)
+  → performed the emote correctly.
+
+**Conclusion**: `DoEmote` itself is unchanged - it still wants the classic
+uppercase token string. What changed is purely how the client exposes the
+command→emote mapping as globals. Since that token has always simply been
+the command word itself uppercased (`/salute` → `SALUTE`), the fix doesn't
+need to extract anything from the registration key (there's nothing
+name-like to extract from `EMOTE79_CMD1`) - it derives the token from the
+command text directly, using the global scan only to confirm the command
+really is a registered emote rather than arbitrary junk.
+
+**Design decision: fixed `CS.Send.FindEmoteToken`** to check both the
+`EMOTE%d+_CMD%d+` pattern (confirmed correct for real emotes on this
+build) and the classic `SLASH_%u+%d+` pattern (kept as a fallback -
+`SLASH_STOPATTACK1` does exist on this build, just not for an actual
+emote), deriving the returned token from `command:sub(2):upper()` in
+either case rather than from the matched key.
+
+**Also fixed the selftest check that should have caught this and
+didn't**: the original "the client's emote command globals" check
+re-implemented its own independent `_G` scan for the classic
+`SLASH_%u+%d+` pattern, found `SLASH_STOPATTACK1` (a real global, just
+not an emote's), and reported `pass` - while the actual `FindEmoteToken`
+function it was supposed to be validating found nothing for `/salute`.
+Checking a *different* thing than what the production code depends on is
+exactly how this shipped unnoticed. The check now calls
+`CS.Send.FindEmoteToken("/salute")` directly against our own shipped
+default phrase, so it can't drift out of sync with the real implementation
+again. `tests/launcher_spec.lua` needed a matching fix: its test harness
+never loaded the real `Send.lua` module, so this check was silently
+erroring (caught by the selftest's own `pcall`) in every headless test run
+without anyone noticing - `loadLauncher()` now loads the genuine `Send.lua`
+instead of leaving `CS.Send` unset, and two tests pin the check's verdict
+to mocked `EMOTE<id>_CMD<n>` globals being present or absent.
+
+Re-verify: `/salute` should now render normally (not flagged) in both the
+options editor and the campfire panel, and actually clicking it in the
+campfire panel should perform the emote.

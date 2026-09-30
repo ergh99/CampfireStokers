@@ -8,18 +8,33 @@ local SAY_COMMANDS = { ["/s"] = true, ["/say"] = true }
 local YELL_COMMANDS = { ["/y"] = true, ["/yell"] = true }
 local EMOTE_COMMANDS = { ["/e"] = true, ["/emote"] = true }
 
--- The client registers each built-in emote's slash text as globals named
--- SLASH_<TOKEN><N> (e.g. SLASH_SALUTE1 = "/salute"), with <TOKEN> also being
--- the emote token DoEmote expects. Scanning for the global whose value
--- matches the command, rather than hardcoding a command/token table, is how
--- this stays correct if Forever's emote list differs from retail's (see
--- AGENTS.md on not assuming retail behavior).
+-- Confirmed in-client 2026-09-30 (see docs/decision-log.md): Forever
+-- registers built-in emotes as EMOTE<id>_CMD<n> globals (e.g.
+-- EMOTE79_CMD1 = "/salute"), keyed by a numeric emote id with no token
+-- name in sight - not the classic retail SLASH_<TOKEN><N> convention this
+-- originally assumed. DoEmote, however, still takes the classic uppercase
+-- name string (DoEmote("SALUTE") performs the emote; DoEmote(79) silently
+-- does nothing), and that name has always just been the command word
+-- itself uppercased. So the fix isn't to extract a token from the
+-- registration key - there isn't one to extract - it's to derive it from
+-- `command`, and use the global scan only to confirm `command` really is
+-- a registered emote (not to source the token). Both naming conventions
+-- are checked, since the classic one hasn't been proven entirely absent
+-- (SLASH_STOPATTACK1 exists on this build, just not for actual emotes).
+local EMOTE_GLOBAL_PATTERNS = {
+    "^EMOTE%d+_CMD%d+$",
+    "^SLASH_%u+%d+$",
+}
+
 function CS.Send.FindEmoteToken(command, emoteGlobals)
     emoteGlobals = emoteGlobals or _G
     for key, value in pairs(emoteGlobals) do
-        local token = type(key) == "string" and key:match("^SLASH_(%u+)%d+$")
-        if token and type(value) == "string" and value:lower() == command then
-            return token
+        if type(key) == "string" and type(value) == "string" and value:lower() == command then
+            for _, pattern in ipairs(EMOTE_GLOBAL_PATTERNS) do
+                if key:match(pattern) then
+                    return command:sub(2):upper()
+                end
+            end
         end
     end
     return nil

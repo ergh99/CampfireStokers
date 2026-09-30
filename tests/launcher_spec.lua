@@ -10,6 +10,11 @@ local function loadLauncher()
         Detection = { CAMPFIRE_SPELL_ID = 0, Simulate = function() end },
         UI = { Toggle = function() end, ShowTextPopup = function() end },
     }
+    -- The real module, not a stub: the "emote command globals" selftest
+    -- check calls CS.Send.FindEmoteToken directly (see Launcher.lua's
+    -- comment on that check for why), so it needs the genuine
+    -- implementation to exercise anything meaningful.
+    loadModule("Send.lua", "CampfireStokers", CS)
     loadModule("Launcher.lua", "CampfireStokers", CS)
     return CS
 end
@@ -55,6 +60,14 @@ local function runSelfTestAndCapture(CS)
     return title, text
 end
 
+local function getCheckStatus(text, name)
+    for status, sectionName in text:gmatch("%[(%u+)%] ([^\n]+)") do
+        if sectionName == name then
+            return status
+        end
+    end
+end
+
 tests["selftest shows a popup (not chat prints) with a verdict section for each check"] = function()
     local CS = loadLauncher()
     local lines, restore = capturePrints()
@@ -72,21 +85,30 @@ tests["selftest shows a popup (not chat prints) with a verdict section for each 
     assert(checkCount == 9, "expected 9 check verdicts, got " .. checkCount)
 end
 
-tests["the emote command globals check ignores this add-on's own slash globals"] = function()
+-- Regression coverage for exactly the gap that let this ship broken: the
+-- original check re-scanned _G with its own copy of the pattern logic
+-- instead of calling CS.Send.FindEmoteToken, so it "passed" by finding an
+-- unrelated global (SLASH_STOPATTACK1) while the actual production
+-- function found nothing for the default /salute phrase. Now that the
+-- check calls CS.Send.FindEmoteToken directly, these two tests pin its
+-- verdict to whatever that real function actually returns.
+tests["the emote command globals check reports pass when FindEmoteToken finds /salute"] = function()
     local CS = loadLauncher()
+    _G.EMOTE79_CMD1 = "/salute"
+
     local _, text = runSelfTestAndCapture(CS)
 
-    assert(text:find("emote command globals", 1, true) ~= nil)
-    assert(text:find("CAMPFIRESTOKERS", 1, true) == nil,
-        "must not report its own slash command as an emote global: " .. text)
+    _G.EMOTE79_CMD1 = nil
+
+    assert(getCheckStatus(text, "the client's emote command globals") == "PASS")
 end
 
-local function getCheckStatus(text, name)
-    for status, sectionName in text:gmatch("%[(%u+)%] ([^\n]+)") do
-        if sectionName == name then
-            return status
-        end
-    end
+tests["the emote command globals check reports fail when FindEmoteToken finds nothing"] = function()
+    local CS = loadLauncher()
+
+    local _, text = runSelfTestAndCapture(CS)
+
+    assert(getCheckStatus(text, "the client's emote command globals") == "FAIL")
 end
 
 -- Regression coverage for exactly the gap manual T6 testing found: the
