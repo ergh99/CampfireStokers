@@ -69,6 +69,35 @@ while secrecy is active" case the first pass couldn't reach.
 - **ReloadUI, hardware-event requirement, `%t` substitution**: still not
   retested in combat / still manual-only. Carry forward.
 
-Re-run `/cfs selftest` in combat against the corrected check to confirm the
-new verdict (expected: `pass`, via the `canaccessvalue` path) once you get
-a chance.
+## 2026-09-30 — T6 in-client verification (third pass, in combat, corrected check)
+
+Re-ran `/cfs selftest` in combat against the fixed check. Result:
+**still `fail`**, but now for a more specific and informative reason:
+`canaccessvalue(result)` returned `true` (readable), not `false`. Neither
+safety net fired — the read didn't throw *and* `canaccessvalue` reports the
+result as fully accessible.
+
+**Conclusion: this campfire aura's data does not appear to be
+secret-restricted on this build at all**, at least for
+`C_UnitAuras.GetPlayerAuraBySpellID` on spell `1229739` during combat. This
+is a plausible, low-stakes gap in the secret-value system rather than a
+bug: "sitting at a campfire" carries no competitive information, so
+Blizzard may simply not bother tainting it, unlike combat-relevant auras
+the system exists to protect.
+
+**Design decision: closed, no code change, and no further retesting
+needed for this specific finding.** `Detection.lua` never attempts this
+read while `ShouldAurasBeSecret()` is `true` — the guard order means this
+result is informational, not something the add-on's safety depends on.
+Keeping the `ShouldAurasBeSecret`-first guard regardless is still correct:
+it costs nothing (a player in a secrecy-restricted state is already
+unlikely to be at a campfire) and stays forward-compatible if a future
+patch narrows or widens what's secret. The selftest check's message and
+its doc comment in `Launcher.lua` are updated to state this conclusion
+directly, so a future `fail` here reads as "known and accepted" rather
+than an open question — a genuine status change (e.g. this aura becoming
+actually restricted in a later patch) would still show up as a change in
+which branch fires, just no longer as a surprise.
+
+`ReloadUI` in combat, the hardware-event requirement, and `%t` substitution
+remain open, to be checked alongside T7's manual verification.

@@ -26,14 +26,18 @@ local SELF_TESTS = {
         end,
     },
     {
-        -- Confirmed 2026-09-30 (see docs/decision-log.md): the read does
-        -- NOT throw during secrecy on this build, contradicting
-        -- forever-addon-kit. That alone doesn't make a read safe, though -
-        -- what actually matters is whether canaccessvalue correctly flags
-        -- the result as unreadable, since Detection.lua's real safety net
-        -- is "ask ShouldAurasBeSecret first" plus "check canaccessvalue
-        -- before touching the result," not "hope the call throws." So this
-        -- check now tests that directly instead of just pcall'ing the read.
+        -- Confirmed in combat 2026-09-30 (see docs/decision-log.md): this
+        -- campfire aura's data is neither throw-protected nor flagged
+        -- unreadable by canaccessvalue during secrecy on this build -
+        -- contradicting forever-addon-kit and, more specifically, meaning
+        -- this particular aura doesn't appear to be secret-restricted here
+        -- at all. That's fine: Detection.lua's real safety net is "ask
+        -- ShouldAurasBeSecret first," which means it never attempts this
+        -- read during secrecy regardless of whether the read itself would
+        -- have been safe. This check still reports the raw finding (fail
+        -- against the documented assumption) rather than papering over it,
+        -- since a future patch narrowing or widening what's secret should
+        -- show up here.
         name = "aura reads while secrecy is active",
         run = function()
             if not (C_Secrets and C_Secrets.ShouldAurasBeSecret) then
@@ -56,9 +60,11 @@ local SELF_TESTS = {
                     .. "check - not just avoiding the read - is what actually keeps this safe."
             end
             return "fail", "Reading an aura while secret neither threw nor was flagged unreadable by "
-                .. "canaccessvalue. Detection.lua's ShouldAurasBeSecret-first guard means it never "
-                .. "reaches this path regardless, but the assumption that this aura's data is "
-                .. "inaccessible during secrecy doesn't hold here; note this for the Decision Log."
+                .. "canaccessvalue - confirmed in combat 2026-09-30 (see docs/decision-log.md). This "
+                .. "specific campfire aura doesn't appear to be secret-restricted on this build at "
+                .. "all. No code change: Detection.lua's ShouldAurasBeSecret-first guard means it "
+                .. "never attempts this read during secrecy regardless of whether the read itself "
+                .. "would be safe, so this is accepted as informational, not an open problem."
         end,
     },
     {
