@@ -81,6 +81,58 @@ tests["the emote command globals check ignores this add-on's own slash globals"]
         "must not report its own slash command as an emote global: " .. text)
 end
 
+local function getCheckStatus(text, name)
+    for status, sectionName in text:gmatch("%[(%u+)%] ([^\n]+)") do
+        if sectionName == name then
+            return status
+        end
+    end
+end
+
+-- Regression coverage for exactly the gap manual T6 testing found: the
+-- original version of this check only asked "did the read throw," which
+-- reported FAIL the moment a real client didn't throw during secrecy -
+-- even though canaccessvalue is the guard Detection.lua actually depends
+-- on. These pin down all three outcomes so that gap can't reopen silently.
+tests["aura-reads-while-secret: PASS when the read throws"] = function()
+    local CS = loadLauncher()
+    _G.C_Secrets = { ShouldAurasBeSecret = function() return true end }
+    _G.C_UnitAuras = { GetPlayerAuraBySpellID = function() error("secret!") end }
+    _G.canaccessvalue = nil
+
+    local _, text = runSelfTestAndCapture(CS)
+
+    assert(getCheckStatus(text, "aura reads while secrecy is active") == "PASS")
+
+    _G.C_Secrets, _G.C_UnitAuras, _G.canaccessvalue = nil, nil, nil
+end
+
+tests["aura-reads-while-secret: PASS when the read doesn't throw but canaccessvalue flags it unreadable"] = function()
+    local CS = loadLauncher()
+    _G.C_Secrets = { ShouldAurasBeSecret = function() return true end }
+    _G.C_UnitAuras = { GetPlayerAuraBySpellID = function() return { spellId = 1 } end }
+    _G.canaccessvalue = function() return false end
+
+    local _, text = runSelfTestAndCapture(CS)
+
+    assert(getCheckStatus(text, "aura reads while secrecy is active") == "PASS")
+
+    _G.C_Secrets, _G.C_UnitAuras, _G.canaccessvalue = nil, nil, nil
+end
+
+tests["aura-reads-while-secret: FAIL when neither throwing nor canaccessvalue catches it"] = function()
+    local CS = loadLauncher()
+    _G.C_Secrets = { ShouldAurasBeSecret = function() return true end }
+    _G.C_UnitAuras = { GetPlayerAuraBySpellID = function() return { spellId = 1 } end }
+    _G.canaccessvalue = function() return true end
+
+    local _, text = runSelfTestAndCapture(CS)
+
+    assert(getCheckStatus(text, "aura reads while secrecy is active") == "FAIL")
+
+    _G.C_Secrets, _G.C_UnitAuras, _G.canaccessvalue = nil, nil, nil
+end
+
 tests["simulate on/off calls Detection.Simulate with the right boolean"] = function()
     local CS = loadLauncher()
     local seen = {}

@@ -26,6 +26,14 @@ local SELF_TESTS = {
         end,
     },
     {
+        -- Confirmed 2026-09-30 (see docs/decision-log.md): the read does
+        -- NOT throw during secrecy on this build, contradicting
+        -- forever-addon-kit. That alone doesn't make a read safe, though -
+        -- what actually matters is whether canaccessvalue correctly flags
+        -- the result as unreadable, since Detection.lua's real safety net
+        -- is "ask ShouldAurasBeSecret first" plus "check canaccessvalue
+        -- before touching the result," not "hope the call throws." So this
+        -- check now tests that directly instead of just pcall'ing the read.
         name = "aura reads while secrecy is active",
         run = function()
             if not (C_Secrets and C_Secrets.ShouldAurasBeSecret) then
@@ -36,14 +44,21 @@ local SELF_TESTS = {
                     .. "/console addonCombatRestrictionsForced 1 (or enter combat, a Mythic+ run, "
                     .. "or a PvP match) and run selftest again."
             end
-            local ok = pcall(C_UnitAuras.GetPlayerAuraBySpellID, CS.Detection.CAMPFIRE_SPELL_ID)
-            if ok then
-                return "fail", "Reading an aura while secret did NOT throw here, contradicting "
-                    .. "forever-addon-kit's finding. The ShouldAurasBeSecret guard is still correct "
-                    .. "to keep either way; note this for the Decision Log."
+            local ok, result = pcall(C_UnitAuras.GetPlayerAuraBySpellID, CS.Detection.CAMPFIRE_SPELL_ID)
+            if not ok then
+                return "pass", "Reading an aura while secret threw. Detection.lua never reaches this "
+                    .. "path anyway (it skips the read once ShouldAurasBeSecret() is true), so this "
+                    .. "is belt-and-suspenders either way."
             end
-            return "pass", "Reading an aura while secret threw, matching forever-addon-kit's "
-                .. "finding. The ShouldAurasBeSecret guard is confirmed necessary."
+            if canaccessvalue and not canaccessvalue(result) then
+                return "pass", "Reading an aura while secret did not throw, but canaccessvalue "
+                    .. "correctly reports the result as unreadable. This confirms the canaccessvalue "
+                    .. "check - not just avoiding the read - is what actually keeps this safe."
+            end
+            return "fail", "Reading an aura while secret neither threw nor was flagged unreadable by "
+                .. "canaccessvalue. Detection.lua's ShouldAurasBeSecret-first guard means it never "
+                .. "reaches this path regardless, but the assumption that this aura's data is "
+                .. "inaccessible during secrecy doesn't hold here; note this for the Decision Log."
         end,
     },
     {

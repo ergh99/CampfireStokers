@@ -36,3 +36,39 @@ No failed assumptions to raise for a design decision from this pass.
 Remaining opens (hardware-event requirement, `%t` substitution, aura reads
 under real secrecy, ReloadUI in combat) carry forward to be checked
 alongside T7's manual verification, once there's a panel to click through.
+
+## 2026-09-30 — T6 in-client verification (second pass, in combat)
+
+Same checklist, this time from inside combat, confirming the "aura reads
+while secrecy is active" case the first pass couldn't reach.
+
+- **Aura reads while secrecy is active — FAILED against the documented
+  assumption**: `C_UnitAuras.GetPlayerAuraBySpellID` did **not** throw while
+  `C_Secrets.ShouldAurasBeSecret()` was `true`, contradicting
+  forever-addon-kit's finding (cited in `docs/definition.md`). Design
+  decision: **no change to Detection.lua**. Its guard order — skip the read
+  entirely once `ShouldAurasBeSecret()` is `true` — never depended on the
+  read throwing; it was already the conservative choice regardless of this
+  specific claim, and it means this code path is never reached in
+  production either way.
+
+  What did need fixing: the *selftest check itself* only asked "did the
+  read throw," so it reported `fail` the moment a real client didn't throw
+  — without ever checking whether `canaccessvalue()` would have caught an
+  unsafe result some other way. That's the wrong question; the property
+  that actually matters is whether *some* safety net (throwing, or
+  `canaccessvalue` flagging the result as unreadable) fires before the
+  addon would touch the data. Rewrote the check to test that directly: it's
+  `pass` if the read throws, `pass` if it doesn't throw but
+  `canaccessvalue(result)` is `false`, and only `fail` if neither happens.
+  Added `launcher_spec.lua` tests pinning down all three branches with
+  mocked `C_Secrets`/`C_UnitAuras`/`canaccessvalue`, since the gap that
+  shipped here — an automated check that only exercised one of two safety
+  mechanisms — is exactly the kind of thing a test should have caught
+  before a human had to.
+- **ReloadUI, hardware-event requirement, `%t` substitution**: still not
+  retested in combat / still manual-only. Carry forward.
+
+Re-run `/cfs selftest` in combat against the corrected check to confirm the
+new verdict (expected: `pass`, via the `canaccessvalue` path) once you get
+a chance.
