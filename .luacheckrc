@@ -39,6 +39,7 @@ read_globals = {
     "C_Timer",
     "UnitExists",
     "GetTime",
+    "GameTooltip",
 
     -- Options.lua
     "StaticPopupDialogs",

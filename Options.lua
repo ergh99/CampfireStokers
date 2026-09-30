@@ -5,7 +5,9 @@ CS.Options = CS.Options or {}
 
 local ROW_HEIGHT = 24
 local ROW_INDENT = 16
+local CATEGORY_GAP = 8
 local BUTTON_HEIGHT = 20
+local DESTRUCTIVE_GAP = 16 -- extra space before Delete, vs. 4px between safe actions
 
 local canvas
 local rowPool = {}
@@ -39,6 +41,22 @@ local function acquireRow()
         row:EnableMouse(true)
         row:RegisterForDrag("LeftButton")
 
+        -- A fixed left-hand gutter for the drag cue, kept visually
+        -- separate from the label text (rather than embedded as a text
+        -- prefix) so it reads as a control, not part of the sentence.
+        row.dragHandle = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.dragHandle:SetPoint("LEFT", row, "LEFT", 2, 0)
+        row.dragHandle:SetText("::")
+        row.dragHandle:SetTextColor(0.45, 0.55, 0.65)
+
+        -- Standard Blizzard disclosure icon instead of a "+"/"-" text
+        -- prefix, matching how the rest of the default UI shows
+        -- collapsible sections.
+        row.collapseIcon = CreateFrame("Button", nil, row)
+        row.collapseIcon:SetSize(14, 14)
+        row.collapseIcon:SetPoint("LEFT", row.dragHandle, "RIGHT", 4, 0)
+        row.collapseIcon:SetHighlightTexture("Interface/Buttons/UI-PlusButton-Hilight", "ADD")
+
         row.label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         row.label:SetJustifyH("LEFT")
 
@@ -58,7 +76,11 @@ local function acquireRow()
     end
 
     row:ClearAllPoints()
+    row.collapseIcon:Hide()
+    row.collapseIcon:SetScript("OnClick", nil)
     row.label:ClearAllPoints()
+    row.label:SetFontObject("GameFontNormalSmall")
+    row.label:SetTextColor(1, 1, 1)
     row.button1:ClearAllPoints()
     row.button1:Hide()
     row.button1:SetScript("OnClick", nil)
@@ -68,7 +90,6 @@ local function acquireRow()
     row.button3:ClearAllPoints()
     row.button3:Hide()
     row.button3:SetScript("OnClick", nil)
-    row.label:SetTextColor(1, 1, 1)
     row.dragContext = nil
     row:SetScript("OnMouseUp", nil)
     row:Show()
@@ -83,13 +104,6 @@ local function releaseRows()
     activeRows = {}
 end
 
-local function promptForText(promptText, initialText, onAccept)
-    StaticPopup_Show("CAMPFIRESTOKERS_TEXT_INPUT", promptText, nil, {
-        initialText = initialText,
-        onAccept = onAccept,
-    })
-end
-
 local function layoutCategoryRow(row, category, y)
     row:SetPoint("TOPLEFT", canvas.rowContainer, "TOPLEFT", 0, y)
     row:SetPoint("RIGHT", canvas.rowContainer, "RIGHT", 0, 0)
@@ -99,23 +113,32 @@ local function layoutCategoryRow(row, category, y)
     row.button1:SetText(CS.Data.L.ui_delete)
     row.button1:Show()
     row.button1:SetScript("OnClick", function()
-        CS.Tree.Delete(CampfireStokersDB, category.id)
-        CS.Options.Refresh()
-        CS.UI.Refresh()
+        StaticPopup_Show("CAMPFIRESTOKERS_DELETE_CATEGORY_CONFIRM", category.name, nil, {
+            categoryId = category.id,
+        })
     end)
 
-    row.button2:SetPoint("RIGHT", row.button1, "LEFT", -4, 0)
+    -- Extra gap before Delete (vs. the tight 4px between Rename/Add
+    -- Phrase) so this destructive action isn't immediately adjacent to
+    -- safe ones - reduces the cost of a misclick.
+    row.button2:SetPoint("RIGHT", row.button1, "LEFT", -DESTRUCTIVE_GAP, 0)
     row.button2:SetWidth(70)
     row.button2:SetText(CS.Data.L.ui_rename)
     row.button2:Show()
     row.button2:SetScript("OnClick", function()
-        promptForText(CS.Data.L.ui_rename_category_prompt, category.name, function(text)
-            if text ~= "" then
+        CS.UI.PromptForText({
+            title = CS.Data.L.ui_rename_category_prompt,
+            initialText = category.name,
+            onAccept = function(text)
+                if text == "" then
+                    return false, CS.Data.L.ui_error_empty
+                end
                 CS.Tree.RenameCategory(CampfireStokersDB, category.id, text)
                 CS.Options.Refresh()
                 CS.UI.Refresh()
-            end
-        end)
+                return true
+            end,
+        })
     end)
 
     row.button3:SetPoint("RIGHT", row.button2, "LEFT", -4, 0)
@@ -123,24 +146,47 @@ local function layoutCategoryRow(row, category, y)
     row.button3:SetText(CS.Data.L.ui_add_phrase)
     row.button3:Show()
     row.button3:SetScript("OnClick", function()
-        promptForText(CS.Data.L.ui_new_phrase_prompt, "", function(text)
-            if text == "" then
-                return
-            end
-            local phrase, err = CS.Tree.AddPhrase(CampfireStokersDB, category.id, text)
-            if not phrase then
-                print("Campfire Stokers: " .. err)
-                return
-            end
-            CS.Options.Refresh()
-            CS.UI.Refresh()
-        end)
+        CS.UI.PromptForText({
+            title = CS.Data.L.ui_new_phrase_prompt,
+            initialText = "",
+            charLimit = 255,
+            onAccept = function(text)
+                if text == "" then
+                    return false, CS.Data.L.ui_error_empty
+                end
+                local phrase, err = CS.Tree.AddPhrase(CampfireStokersDB, category.id, text)
+                if not phrase then
+                    return false, err
+                end
+                CS.Options.Refresh()
+                CS.UI.Refresh()
+                return true
+            end,
+        })
     end)
 
-    row.label:SetPoint("LEFT", row, "LEFT", 4, 0)
-    row.label:SetPoint("RIGHT", row.button3, "LEFT", -8, 0)
     local collapsed = CampfireStokersDB.collapsedCategories[category.id] == true
-    row.label:SetText(":: " .. (collapsed and "+ " or "- ") .. category.name)
+    row.collapseIcon:Show()
+    row.collapseIcon:SetNormalTexture(
+        collapsed and "Interface/Buttons/UI-PlusButton-Up" or "Interface/Buttons/UI-MinusButton-Up"
+    )
+    row.collapseIcon:SetPushedTexture(
+        collapsed and "Interface/Buttons/UI-PlusButton-Down" or "Interface/Buttons/UI-MinusButton-Down"
+    )
+    row.collapseIcon:SetScript("OnClick", function()
+        if collapsed then
+            CampfireStokersDB.collapsedCategories[category.id] = nil
+        else
+            CampfireStokersDB.collapsedCategories[category.id] = true
+        end
+        CS.Options.Refresh()
+    end)
+
+    row.label:SetPoint("LEFT", row.collapseIcon, "RIGHT", 4, 0)
+    row.label:SetPoint("RIGHT", row.button3, "LEFT", -8, 0)
+    row.label:SetFontObject("GameFontNormal")
+    row.label:SetTextColor(1, 0.82, 0) -- WoW's standard header gold
+    row.label:SetText(category.name)
     row:SetScript("OnMouseUp", function(_, button)
         if button == "LeftButton" then
             if collapsed then
@@ -167,28 +213,37 @@ local function layoutPhraseRow(row, phrase, y)
         CS.UI.Refresh()
     end)
 
-    row.button2:SetPoint("RIGHT", row.button1, "LEFT", -4, 0)
+    -- Same extra-gap treatment as the category row's Delete; an individual
+    -- phrase is lower blast-radius than a whole category, so this gets
+    -- spacing rather than a confirmation popup, to keep routine cleanup
+    -- from requiring a dialog click every time.
+    row.button2:SetPoint("RIGHT", row.button1, "LEFT", -DESTRUCTIVE_GAP, 0)
     row.button2:SetWidth(70)
     row.button2:SetText(CS.Data.L.ui_edit)
     row.button2:Show()
     row.button2:SetScript("OnClick", function()
-        promptForText(CS.Data.L.ui_edit_phrase_prompt, phrase.text, function(text)
-            if text == "" then
-                return
-            end
-            local ok, err = CS.Tree.EditPhraseText(CampfireStokersDB, phrase.id, text)
-            if not ok then
-                print("Campfire Stokers: " .. err)
-                return
-            end
-            CS.Options.Refresh()
-            CS.UI.Refresh()
-        end)
+        CS.UI.PromptForText({
+            title = CS.Data.L.ui_edit_phrase_prompt,
+            initialText = phrase.text,
+            charLimit = 255,
+            onAccept = function(text)
+                if text == "" then
+                    return false, CS.Data.L.ui_error_empty
+                end
+                local ok, err = CS.Tree.EditPhraseText(CampfireStokersDB, phrase.id, text)
+                if not ok then
+                    return false, err
+                end
+                CS.Options.Refresh()
+                CS.UI.Refresh()
+                return true
+            end,
+        })
     end)
 
-    row.label:SetPoint("LEFT", row, "LEFT", 4, 0)
+    row.label:SetPoint("LEFT", row.dragHandle, "RIGHT", 4, 0)
     row.label:SetPoint("RIGHT", row.button2, "LEFT", -8, 0)
-    row.label:SetText(":: " .. phrase.text)
+    row.label:SetText(phrase.text)
     local sendable = CS.Send.Classify(phrase.text, { sendMode = CampfireStokersDB.sendMode }).kind ~= "rejected"
     if not sendable then
         row.label:SetTextColor(0.7, 0.35, 0.35)
@@ -238,7 +293,11 @@ function CS.Options.Refresh()
     local categoryRows = {}
     local y = 0
 
-    for _, category in ipairs(CampfireStokersDB.tree) do
+    for categoryIndex, category in ipairs(CampfireStokersDB.tree) do
+        if categoryIndex > 1 then
+            y = y - CATEGORY_GAP
+        end
+
         local headerRow = acquireRow()
         layoutCategoryRow(headerRow, category, y)
         table.insert(activeRows, headerRow)
@@ -268,36 +327,14 @@ function CS.Options.Refresh()
 end
 
 local function registerPopups()
-    -- Confirmed in-client 2026-09-30: this build's StaticPopup dialog frame
-    -- exposes its edit box as self.EditBox (capital E), not the classic
-    -- lowercase self.editBox - matching the PascalCase field naming used
-    -- throughout Blizzard_StaticPopup_Game/GameDialog.xml on this client.
-    -- See AGENTS.md's "Known deviations from retail" note: don't assume
-    -- classic-era field names carry over unchanged.
-    StaticPopupDialogs["CAMPFIRESTOKERS_TEXT_INPUT"] = {
-        text = "%s",
-        button1 = CS.Data.L.ui_accept,
+    StaticPopupDialogs["CAMPFIRESTOKERS_RESET_CONFIRM"] = {
+        text = CS.Data.L.ui_reset_confirm,
+        button1 = CS.Data.L.ui_reset_defaults,
         button2 = CS.Data.L.ui_cancel,
-        hasEditBox = true,
-        OnAccept = function(self, data)
-            if data.onAccept then
-                data.onAccept(self.EditBox:GetText())
-            end
-        end,
-        EditBoxOnEnterPressed = function(self)
-            local parent = self:GetParent()
-            if parent.data and parent.data.onAccept then
-                parent.data.onAccept(parent.EditBox:GetText())
-            end
-            parent:Hide()
-        end,
-        OnShow = function(self, data)
-            self.EditBox:SetText(data.initialText or "")
-            self.EditBox:HighlightText()
-            self.EditBox:SetFocus()
-        end,
-        EditBoxOnEscapePressed = function(self)
-            self:GetParent():Hide()
+        OnAccept = function()
+            CS.Tree.ResetToDefaults(CampfireStokersDB)
+            CS.Options.Refresh()
+            CS.UI.Refresh()
         end,
         timeout = 0,
         whileDead = true,
@@ -305,12 +342,12 @@ local function registerPopups()
         preferredIndex = 3,
     }
 
-    StaticPopupDialogs["CAMPFIRESTOKERS_RESET_CONFIRM"] = {
-        text = CS.Data.L.ui_reset_confirm,
-        button1 = CS.Data.L.ui_reset_defaults,
+    StaticPopupDialogs["CAMPFIRESTOKERS_DELETE_CATEGORY_CONFIRM"] = {
+        text = CS.Data.L.ui_delete_category_confirm,
+        button1 = CS.Data.L.ui_delete,
         button2 = CS.Data.L.ui_cancel,
-        OnAccept = function()
-            CS.Tree.ResetToDefaults(CampfireStokersDB)
+        OnAccept = function(_, data)
+            CS.Tree.Delete(CampfireStokersDB, data.categoryId)
             CS.Options.Refresh()
             CS.UI.Refresh()
         end,
@@ -346,13 +383,19 @@ function CS.Options.CreateCanvas()
     addCategoryButton:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)
     addCategoryButton:SetText(CS.Data.L.ui_add_category)
     addCategoryButton:SetScript("OnClick", function()
-        promptForText(CS.Data.L.ui_new_category_prompt, "", function(text)
-            if text ~= "" then
+        CS.UI.PromptForText({
+            title = CS.Data.L.ui_new_category_prompt,
+            initialText = "",
+            onAccept = function(text)
+                if text == "" then
+                    return false, CS.Data.L.ui_error_empty
+                end
                 CS.Tree.AddCategory(CampfireStokersDB, text)
                 CS.Options.Refresh()
                 CS.UI.Refresh()
-            end
-        end)
+                return true
+            end,
+        })
     end)
 
     local resetButton = CreateFrame("Button", nil, canvas, "UIPanelButtonTemplate")

@@ -39,6 +39,8 @@ local L = {
     ui_say = "Say",
     ui_yell = "Yell",
     ui_selftest_title = "Campfire Stokers Self-Test",
+    ui_panel_title = "Campfire Stokers",
+    ui_needs_target_tooltip = "Requires a target to send.",
 
     ui_options_title = "Campfire Stokers",
     ui_add_category = "Add Category",
@@ -49,6 +51,7 @@ local L = {
     ui_reset_defaults = "Reset to Defaults",
     ui_restore_defaults = "Restore Missing Defaults",
     ui_reset_confirm = "Reset the phrase tree to defaults? This replaces everything, including your own categories and phrases.",
+    ui_delete_category_confirm = "Delete the category \"%s\" and all its phrases? This can't be undone.",
     ui_auto_open_delay_label = "Auto-open delay (seconds):",
     ui_new_category_prompt = "New category name:",
     ui_new_phrase_prompt = "New phrase text:",
@@ -56,6 +59,7 @@ local L = {
     ui_edit_phrase_prompt = "Edit phrase text:",
     ui_accept = "Accept",
     ui_cancel = "Cancel",
+    ui_error_empty = "This can't be empty.",
 }
 
 CS.Data.L = L
