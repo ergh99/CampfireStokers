@@ -101,3 +101,16 @@ which branch fires, just no longer as a surprise.
 
 `ReloadUI` in combat, the hardware-event requirement, and `%t` substitution
 remain open, to be checked alongside T7's manual verification.
+
+## 2026-09-30 — T7 manual verification (panel clicks, ReloadUI in combat)
+
+- **Hardware-event requirement for sends — CLOSED, no issue.** Clicking a
+  phrase button in the panel sent it as expected. Send.lua's dispatch runs
+  from the button's own `OnClick`, which is already a real hardware event,
+  so nothing needed to change.
+- **ReloadUI in combat — CLOSED, no issue.** `/run ReloadUI()` completed
+  without error while in combat, same as the earlier out-of-combat result.
+  Still no code change: this add-on never calls `ReloadUI` regardless
+  (`Options.lua` refreshes its editor in place).
+
+Only `%t` substitution remains open.

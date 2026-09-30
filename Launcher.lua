@@ -85,10 +85,11 @@ local SELF_TESTS = {
     {
         name = "ReloadUI protection",
         run = function()
-            return "unknown", "Manually tested out of combat 2026-09-30: ReloadUI ran without error "
-                .. "from a slash-command context (see docs/decision-log.md); not yet retested in "
-                .. "combat. Not auto-tested here since running it would reload your UI. This add-on "
-                .. "never calls ReloadUI regardless (Options.lua refreshes in place)."
+            return "unknown", "Manually tested both out of combat and in combat 2026-09-30: ReloadUI "
+                .. "ran without error both times (see docs/decision-log.md) - it isn't blocked from a "
+                .. "slash-command context on this build. Not auto-tested here since running it would "
+                .. "reload your UI. Moot either way: this add-on never calls ReloadUI regardless "
+                .. "(Options.lua refreshes in place)."
         end,
     },
     {
@@ -102,10 +103,9 @@ local SELF_TESTS = {
     {
         name = "hardware-event requirement for sends",
         run = function()
-            return "unknown", "Not auto-tested: would send a real chat message or emote. Manually "
-                .. "click a phrase button once the panel exists (T7); if a click silently fails to "
-                .. "send, sends require a real hardware event and Send.lua's dispatch must be called "
-                .. "from a button's OnClick, not from a slash command or timer."
+            return "pass", "Manually confirmed 2026-09-30 (see docs/decision-log.md): clicking a "
+                .. "phrase button in the panel sends it. A button's OnClick is already a real "
+                .. "hardware event, so Send.lua's dispatch running from there is sufficient."
         end,
     },
     {
