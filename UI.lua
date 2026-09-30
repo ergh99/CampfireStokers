@@ -1,5 +1,6 @@
 local CS = select(2, ...)
 
+---@class CampfireStokersUI
 CS.UI = CS.UI or {}
 
 local AUTO_OPEN_DEFAULT_DELAY = 300 -- seconds; CampfireStokersDB.autoOpenDelay overrides

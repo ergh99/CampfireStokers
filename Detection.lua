@@ -1,5 +1,6 @@
 local CS = select(2, ...)
 
+---@class CampfireStokersDetection
 CS.Detection = CS.Detection or {}
 
 -- Confirmed in-client during T6 (2026-09-30); see docs/decision-log.md.

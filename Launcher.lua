@@ -1,5 +1,6 @@
 local CS = select(2, ...)
 
+---@class CampfireStokersLauncher
 CS.Launcher = CS.Launcher or {}
 
 function CampfireStokers_OnAddonCompartmentClick(_addonName, _buttonName, _menuButtonFrame)

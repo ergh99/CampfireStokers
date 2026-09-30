@@ -1,5 +1,6 @@
 local CS = select(2, ...)
 
+---@class CampfireStokersData
 CS.Data = CS.Data or {}
 
 -- Bumped by Tree.lua's migration whenever a default category or phrase is
