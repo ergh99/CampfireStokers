@@ -130,15 +130,23 @@ local SELF_TESTS = {
     },
 }
 
-local function runSelfTest()
-    print("Campfire Stokers self-test:")
+local function buildSelfTestReport()
+    local sections = {}
     for _, check in ipairs(SELF_TESTS) do
         local ok, status, message = pcall(check.run)
         if not ok then
             status, message = "fail", "self-test check errored: " .. tostring(status)
         end
-        print(string.format("  [%s] %s - %s", status:upper(), check.name, message))
+        table.insert(sections, string.format("[%s] %s\n%s", status:upper(), check.name, message))
     end
+    return table.concat(sections, "\n\n")
+end
+
+-- The chat frame line-wraps and scrolls away long multi-paragraph text, so
+-- this goes in a copyable popup (CS.UI.ShowTextPopup) rather than nine
+-- separate print() lines.
+local function runSelfTest()
+    CS.UI.ShowTextPopup(CS.Data.L.ui_selftest_title, buildSelfTestReport())
 end
 
 local function runSimulate(arg)

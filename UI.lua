@@ -216,6 +216,72 @@ function CS.UI.OnCampfireStateChanged(atFire)
     end
 end
 
+local textPopup
+
+-- Same technique simc-addon uses to show exportable text: a DialogBox-style
+-- backdrop frame holding a ScrollFrame whose scroll child is a multi-line
+-- EditBox. HighlightText() selects everything on show, so Ctrl+C copies
+-- immediately with no custom clipboard handling. Built lazily and reused,
+-- since nothing needs more than one of these open at a time.
+local function ensureTextPopup()
+    if textPopup then
+        return textPopup
+    end
+
+    local popup = CreateFrame("Frame", "CampfireStokersTextPopup", UIParent, "BackdropTemplate")
+    popup:SetSize(420, 320)
+    popup:SetPoint("CENTER")
+    popup:SetFrameStrata("DIALOG")
+    popup:SetBackdrop({
+        bgFile = "Interface/DialogFrame/UI-DialogBox-Background",
+        edgeFile = "Interface/DialogFrame/UI-DialogBox-Border",
+        edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 },
+    })
+    popup:SetMovable(true)
+    popup:EnableMouse(true)
+    popup:SetClampedToScreen(true)
+
+    popup.title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    popup.title:SetPoint("TOP", popup, "TOP", 0, -16)
+
+    local closeButton = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -4, -4)
+    closeButton:SetScript("OnClick", function()
+        popup:Hide()
+    end)
+
+    local scrollFrame = CreateFrame("ScrollFrame", nil, popup, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", popup, "TOPLEFT", 16, -40)
+    scrollFrame:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -32, 16)
+
+    local editBox = CreateFrame("EditBox", nil, scrollFrame)
+    editBox:SetMultiLine(true)
+    editBox:SetAutoFocus(true)
+    editBox:SetFontObject("ChatFontNormal")
+    editBox:SetWidth(scrollFrame:GetWidth())
+    editBox:SetScript("OnEscapePressed", function()
+        popup:Hide()
+    end)
+    scrollFrame:SetScrollChild(editBox)
+    popup.editBox = editBox
+
+    popup:Hide()
+    textPopup = popup
+    return popup
+end
+
+-- Shows `text` in a scrollable, selectable popup instead of dumping it into
+-- chat - used for T6's selftest report, which is too long and multi-line
+-- for chat to display legibly.
+function CS.UI.ShowTextPopup(title, text)
+    local popup = ensureTextPopup()
+    popup.title:SetText(title)
+    popup.editBox:SetText(text)
+    popup.editBox:HighlightText()
+    popup:Show()
+end
+
 -- Creates the panel frame. Called once, from Core.lua's ADDON_LOADED
 -- handler, after CampfireStokersDB has been bootstrapped. Uses no secure
 -- templates: every click just calls an ordinary Lua function

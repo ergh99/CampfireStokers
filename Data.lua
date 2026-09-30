@@ -37,6 +37,7 @@ local L = {
 
     ui_say = "Say",
     ui_yell = "Yell",
+    ui_selftest_title = "Campfire Stokers Self-Test",
 }
 
 CS.Data.L = L

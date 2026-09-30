@@ -6,8 +6,9 @@ local tests = {}
 local function loadLauncher()
     wowStub.install()
     local CS = {
+        Data = { L = { ui_selftest_title = "Campfire Stokers Self-Test" } },
         Detection = { CAMPFIRE_SPELL_ID = 0, Simulate = function() end },
-        UI = { Toggle = function() end },
+        UI = { Toggle = function() end, ShowTextPopup = function() end },
     }
     loadModule("Launcher.lua", "CampfireStokers", CS)
     return CS
@@ -45,33 +46,39 @@ tests["the addon compartment click handler toggles the panel"] = function()
     assert(toggled == 1)
 end
 
-tests["selftest runs every check and prints a verdict line for each"] = function()
-    loadLauncher()
-    local lines, restore = capturePrints()
+local function runSelfTestAndCapture(CS)
+    local title, text
+    CS.UI.ShowTextPopup = function(popupTitle, popupText)
+        title, text = popupTitle, popupText
+    end
     SlashCmdList.CAMPFIRESTOKERS("selftest")
+    return title, text
+end
+
+tests["selftest shows a popup (not chat prints) with a verdict section for each check"] = function()
+    local CS = loadLauncher()
+    local lines, restore = capturePrints()
+    local title, text = runSelfTestAndCapture(CS)
     restore()
 
-    assert(#lines == 10, "expected a header plus 9 check lines, got " .. #lines)
-    for i = 2, #lines do
-        assert(lines[i]:match("^%s*%[%u+%]") ~= nil, "line should start with a [STATUS]: " .. lines[i])
+    assert(#lines == 0, "selftest should not print to chat at all")
+    assert(title == "Campfire Stokers Self-Test")
+    assert(type(text) == "string")
+
+    local checkCount = 0
+    for _ in text:gmatch("%[%u+%]") do
+        checkCount = checkCount + 1
     end
+    assert(checkCount == 9, "expected 9 check verdicts, got " .. checkCount)
 end
 
 tests["the emote command globals check ignores this add-on's own slash globals"] = function()
-    loadLauncher()
-    local lines, restore = capturePrints()
-    SlashCmdList.CAMPFIRESTOKERS("selftest")
-    restore()
+    local CS = loadLauncher()
+    local _, text = runSelfTestAndCapture(CS)
 
-    local emoteLine
-    for _, line in ipairs(lines) do
-        if line:find("emote command globals", 1, true) then
-            emoteLine = line
-        end
-    end
-    assert(emoteLine ~= nil)
-    assert(emoteLine:find("CAMPFIRESTOKERS", 1, true) == nil,
-        "must not report its own slash command as an emote global: " .. emoteLine)
+    assert(text:find("emote command globals", 1, true) ~= nil)
+    assert(text:find("CAMPFIRESTOKERS", 1, true) == nil,
+        "must not report its own slash command as an emote global: " .. text)
 end
 
 tests["simulate on/off calls Detection.Simulate with the right boolean"] = function()
