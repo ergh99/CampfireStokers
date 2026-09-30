@@ -134,3 +134,30 @@ designed.
 This closes every check from T6's self-test and T7's manual verification
 list: all either `pass`, or `fail`-but-understood-and-accepted (the one
 aura-secrecy finding above), or confirmed manually with no issues.
+
+## 2026-09-30 — T8 manual verification: StaticPopup's EditBox field renamed
+
+Clicking "Add Category" opened the popup correctly but threw: `Options.lua:283:
+attempt to index field 'editBox' (a nil value)` in `OnShow`. The error's
+locals dump showed the actual field on this build's dialog frame is
+`EditBox` (capital E) — confirmed by the same dump listing `ButtonContainer`,
+`CloseButton`, `SubText`, etc., all PascalCase, consistent with
+`Blizzard_StaticPopup_Game/GameDialog.xml`'s naming rather than the
+classic lowercase `editBox` from older StaticPopup.lua-based dialogs.
+
+**Design decision: fixed, all four `self.editBox`/`parent.editBox`
+references in `Options.lua`'s `CAMPFIRESTOKERS_TEXT_INPUT` popup changed to
+`self.EditBox`/`parent.EditBox`.** This is exactly the class of deviation
+AGENTS.md's TOC-gate section warns about — retail-derived code (including
+code written from general WoW addon knowledge, not just copied from a
+specific reference repo) can't be assumed to carry field names over
+unchanged. A comment was added at the registration site pointing back here.
+UI.lua's own popup (`ShowTextPopup`) is unaffected — it builds its EditBox
+by hand rather than through a `StaticPopupDialogs` template, so there's no
+Blizzard-owned field name involved there.
+
+**Open**: only the "Add Category" flow was exercised before this fix.
+Re-verify Add Category, Add Phrase, Rename, and Edit Text all work
+end-to-end (popup shows pre-filled text where expected, typing and
+accepting actually applies the change) now that the EditBox reference is
+correct.

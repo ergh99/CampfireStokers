@@ -262,6 +262,12 @@ function CS.Options.Refresh()
 end
 
 local function registerPopups()
+    -- Confirmed in-client 2026-09-30: this build's StaticPopup dialog frame
+    -- exposes its edit box as self.EditBox (capital E), not the classic
+    -- lowercase self.editBox - matching the PascalCase field naming used
+    -- throughout Blizzard_StaticPopup_Game/GameDialog.xml on this client.
+    -- See AGENTS.md's "Known deviations from retail" note: don't assume
+    -- classic-era field names carry over unchanged.
     StaticPopupDialogs["CAMPFIRESTOKERS_TEXT_INPUT"] = {
         text = "%s",
         button1 = CS.Data.L.ui_accept,
@@ -269,20 +275,20 @@ local function registerPopups()
         hasEditBox = true,
         OnAccept = function(self, data)
             if data.onAccept then
-                data.onAccept(self.editBox:GetText())
+                data.onAccept(self.EditBox:GetText())
             end
         end,
         EditBoxOnEnterPressed = function(self)
             local parent = self:GetParent()
             if parent.data and parent.data.onAccept then
-                parent.data.onAccept(parent.editBox:GetText())
+                parent.data.onAccept(parent.EditBox:GetText())
             end
             parent:Hide()
         end,
         OnShow = function(self, data)
-            self.editBox:SetText(data.initialText or "")
-            self.editBox:HighlightText()
-            self.editBox:SetFocus()
+            self.EditBox:SetText(data.initialText or "")
+            self.EditBox:HighlightText()
+            self.EditBox:SetFocus()
         end,
         EditBoxOnEscapePressed = function(self)
             self:GetParent():Hide()
