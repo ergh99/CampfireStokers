@@ -301,3 +301,10 @@ detection is fixed).
 and phrases), the 255-character rejection message on Add Phrase/Edit
 Text, Reset to Defaults and Restore Missing Defaults actually applying,
 and confirming a change made in the editor survives `/reload`.
+
+**Resolved (2026-09-30, retest) — T8 fully closed.** All four confirmed
+working as expected: drag-and-drop reordering for both categories and
+phrases, the 255-character limit rejection and its message, Reset to
+Defaults and Restore Missing Defaults, and persistence across `/reload`.
+No further findings; every T8 checklist item from tasks.md is done and
+verified in-client.
