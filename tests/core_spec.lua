@@ -23,10 +23,21 @@ local function makeUIStub()
     return ui
 end
 
+-- Same reasoning as makeUIStub: Options.lua's real CreateCanvas() needs a
+-- full frame tree this test harness doesn't model, so it's stubbed to
+-- verify only that Core.lua calls it.
+local function makeOptionsStub()
+    local options = { createCanvasCalls = 0 }
+    options.CreateCanvas = function()
+        options.createCanvasCalls = options.createCanvasCalls + 1
+    end
+    return options
+end
+
 local function loadCoreWithDependencies()
     local capturedFrame
 
-    local CS = { UI = makeUIStub() }
+    local CS = { UI = makeUIStub(), Options = makeOptionsStub() }
     loadModule("Data.lua", "CampfireStokers", CS)
     loadModule("Tree.lua", "CampfireStokers", CS)
     loadModule("Send.lua", "CampfireStokers", CS)
@@ -75,6 +86,7 @@ tests["ADDON_LOADED for this addon bootstraps CampfireStokersDB and wires Detect
     assert(type(_G.CampfireStokersDB) == "table")
     assert(#_G.CampfireStokersDB.tree == 5, "bootstrap should have deep-copied DefaultTree in")
     assert(CS.UI.createPanelCalls == 1, "Core.lua must create the panel exactly once on load")
+    assert(CS.Options.createCanvasCalls == 1, "Core.lua must create the options canvas exactly once on load")
     assert(CS.Detection.atFire == false, "no aura mocked, so the initial Refresh should leave it false")
 
     CS.Detection.Simulate(true)

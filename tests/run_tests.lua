@@ -12,6 +12,7 @@ local SPEC_FILES = {
     "core_spec",
     "launcher_spec",
     "ui_spec",
+    "options_spec",
 }
 
 local total, failed = 0, 0

@@ -134,10 +134,11 @@ and Launcher.lua's command routing and selftest checks
 (`tests/launcher_spec.lua`, using `tests/support/wow_stub.lua`'s minimal
 `CreateFrame`/`SlashCmdList`). What stays manual, in-client only, is
 anything that needs a real frame tree - UI.lua's actual panel construction
-(`CreatePanel`) and Options.lua's editor - since mocking backdrops, font
-strings, and button templates well enough to exercise those for real isn't
-worth it; only UI.lua's one pure helper (`ShouldAutoOpen`) is headless-
-tested (`tests/ui_spec.lua`). WoWUnit is used for that in-client
+(`CreatePanel`) and Options.lua's editor (`CreateCanvas`) - since mocking
+backdrops, font strings, and button templates well enough to exercise those
+for real isn't worth it; only each module's one pure helper is headless-
+tested (`tests/ui_spec.lua`'s `ShouldAutoOpen`, `tests/options_spec.lua`'s
+`FindDropIndex` drag-reorder math). WoWUnit is used for that in-client
 exploratory/self-test work (see the self-test and
 simulate-campfire subcommands added in the "in-client verification"
 milestone). If you add a WoWUnit test group, list it in

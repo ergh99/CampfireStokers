@@ -39,4 +39,10 @@ read_globals = {
     "C_Timer",
     "UnitExists",
     "GetTime",
+
+    -- Options.lua
+    "StaticPopupDialogs",
+    "StaticPopup_Show",
+    "Settings",
+    "GetCursorPosition",
 }

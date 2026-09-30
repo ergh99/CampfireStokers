@@ -39,6 +39,23 @@ local L = {
     ui_say = "Say",
     ui_yell = "Yell",
     ui_selftest_title = "Campfire Stokers Self-Test",
+
+    ui_options_title = "Campfire Stokers",
+    ui_add_category = "Add Category",
+    ui_add_phrase = "Add Phrase",
+    ui_rename = "Rename",
+    ui_edit = "Edit",
+    ui_delete = "Delete",
+    ui_reset_defaults = "Reset to Defaults",
+    ui_restore_defaults = "Restore Missing Defaults",
+    ui_reset_confirm = "Reset the phrase tree to defaults? This replaces everything, including your own categories and phrases.",
+    ui_auto_open_delay_label = "Auto-open delay (seconds):",
+    ui_new_category_prompt = "New category name:",
+    ui_new_phrase_prompt = "New phrase text:",
+    ui_rename_category_prompt = "Rename category:",
+    ui_edit_phrase_prompt = "Edit phrase text:",
+    ui_accept = "Accept",
+    ui_cancel = "Cancel",
 }
 
 CS.Data.L = L

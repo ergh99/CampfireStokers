@@ -13,6 +13,7 @@ frame:SetScript("OnEvent", function(_, event, loadedAddonName)
     CampfireStokersDB = CS.Tree.Bootstrap(CampfireStokersDB)
 
     CS.UI.CreatePanel()
+    CS.Options.CreateCanvas()
     CS.Detection.RegisterStateChangedCallback(CS.UI.OnCampfireStateChanged)
 
     CS.Detection.CreateEventFrame()
