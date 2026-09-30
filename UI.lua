@@ -7,8 +7,8 @@ local AUTO_OPEN_DEFAULT_DELAY = 300 -- seconds; CampfireStokersDB.autoOpenDelay 
 local ROW_HEIGHT = 20
 local ROW_INDENT = 14
 local CATEGORY_GAP = 6
-local PANEL_WIDTH = 260
-local TOP_CONTROLS_HEIGHT = 52
+local PANEL_WIDTH = 300
+local TOP_CONTROLS_HEIGHT = 58
 local HIGHLIGHT_DURATION = 0.15
 
 local frame
@@ -34,20 +34,12 @@ local function acquireRow()
         row = CreateFrame("Button", nil, frame)
         row:SetHeight(ROW_HEIGHT)
 
-        -- A fixed left-hand gutter for the drag cue, kept visually separate
-        -- from the label text (rather than embedded as a text prefix) so
-        -- it reads as a control, not part of the sentence.
-        row.dragHandle = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        row.dragHandle:SetPoint("LEFT", row, "LEFT", 2, 0)
-        row.dragHandle:SetText("::")
-        row.dragHandle:SetTextColor(0.45, 0.55, 0.65)
-
         -- Standard Blizzard disclosure icon instead of a "+"/"-" text
         -- prefix, matching how the rest of the default UI shows
         -- collapsible sections.
         row.collapseIcon = CreateFrame("Button", nil, row)
         row.collapseIcon:SetSize(14, 14)
-        row.collapseIcon:SetPoint("LEFT", row.dragHandle, "RIGHT", 4, 0)
+        row.collapseIcon:SetPoint("LEFT", row, "LEFT", 2, 0)
         row.collapseIcon:SetHighlightTexture("Interface/Buttons/UI-PlusButton-Hilight", "ADD")
 
         row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -55,10 +47,10 @@ local function acquireRow()
         row.text:SetJustifyH("LEFT")
     end
 
-    row.dragHandle:Show()
     row.collapseIcon:Hide()
     row.collapseIcon:SetScript("OnClick", nil)
     row.text:ClearAllPoints()
+    row.text:SetPoint("LEFT", row, "LEFT", 4, 0)
     row.text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     row.text:SetFontObject("GameFontNormalSmall")
     row.text:SetTextColor(1, 1, 1)
@@ -67,6 +59,10 @@ local function acquireRow()
     row.sendable = nil
     row.classifyReason = nil
     row.tooltipText = nil
+    -- Deliberately not row:SetEnabled(false) anywhere: a disabled Button
+    -- stops receiving OnEnter/OnLeave in WoW, which would silently kill
+    -- the tooltip on exactly the rows that need to explain themselves.
+    -- Clickability is controlled solely by whether OnClick is attached.
     row:SetEnabled(true)
     row:SetScript("OnClick", nil)
     row:SetScript("OnEnter", nil)
@@ -140,7 +136,6 @@ end
 local function applyRowState(row)
     local hasTarget = UnitExists("target")
     local enabled = row.sendable and (not row.needsTarget or hasTarget)
-    row:SetEnabled(enabled)
     if not row.sendable then
         row.text:SetTextColor(0.7, 0.35, 0.35) -- flagged: never sendable
         row.tooltipText = row.classifyReason
@@ -212,7 +207,6 @@ function CS.UI.Refresh()
                 local phraseRow = acquireRow()
                 phraseRow:SetPoint("TOPLEFT", frame, "TOPLEFT", 4 + ROW_INDENT, y)
                 phraseRow:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
-                phraseRow.text:SetPoint("LEFT", phraseRow.dragHandle, "RIGHT", 4, 0)
                 phraseRow.text:SetText(phrase.text)
                 phraseRow.phrase = phrase
                 phraseRow.needsTarget = CS.Send.ContainsTargetToken(phrase.text)
@@ -521,11 +515,11 @@ function CS.UI.CreatePanel()
     -- expected place to grab it, since a title strip is the universal
     -- convention for "this is how you move this window."
     local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    titleText:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6)
+    titleText:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -10)
     titleText:SetText(CS.Data.L.ui_panel_title)
 
     local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
+    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
     closeButton:SetScript("OnClick", CS.UI.Hide)
 
     -- Say/Yell as a two-state segmented control (both options always
@@ -535,7 +529,7 @@ function CS.UI.CreatePanel()
     -- would switch to.
     local sayButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     sayButton:SetSize(44, 20)
-    sayButton:SetPoint("TOPLEFT", titleText, "BOTTOMLEFT", 0, -6)
+    sayButton:SetPoint("TOPLEFT", titleText, "BOTTOMLEFT", 0, -10)
     sayButton:SetText(CS.Data.L.ui_say)
 
     local yellButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")

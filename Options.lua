@@ -73,9 +73,27 @@ local function acquireRow()
         row:SetScript("OnDragStop", function()
             CS.Options.HandleDragStop()
         end)
+
+        -- Action buttons and the drag handle stay hidden until the row is
+        -- hovered - showing every row's full button set at once was an
+        -- overwhelming wall of identical buttons; revealing them only for
+        -- the row under the cursor keeps the list scannable while still
+        -- making every control fully discoverable and reachable, not
+        -- hidden behind a keyboard shortcut or menu.
+        row:SetScript("OnEnter", function(self)
+            for _, widget in ipairs(self.hoverWidgets or {}) do
+                widget:Show()
+            end
+        end)
+        row:SetScript("OnLeave", function(self)
+            for _, widget in ipairs(self.hoverWidgets or {}) do
+                widget:Hide()
+            end
+        end)
     end
 
     row:ClearAllPoints()
+    row.dragHandle:Hide()
     row.collapseIcon:Hide()
     row.collapseIcon:SetScript("OnClick", nil)
     row.label:ClearAllPoints()
@@ -91,6 +109,7 @@ local function acquireRow()
     row.button3:Hide()
     row.button3:SetScript("OnClick", nil)
     row.dragContext = nil
+    row.hoverWidgets = {}
     row:SetScript("OnMouseUp", nil)
     row:Show()
     return row
@@ -111,7 +130,6 @@ local function layoutCategoryRow(row, category, y)
     row.button1:SetPoint("RIGHT", row, "RIGHT", 0, 0)
     row.button1:SetWidth(70)
     row.button1:SetText(CS.Data.L.ui_delete)
-    row.button1:Show()
     row.button1:SetScript("OnClick", function()
         StaticPopup_Show("CAMPFIRESTOKERS_DELETE_CATEGORY_CONFIRM", category.name, nil, {
             categoryId = category.id,
@@ -124,7 +142,6 @@ local function layoutCategoryRow(row, category, y)
     row.button2:SetPoint("RIGHT", row.button1, "LEFT", -DESTRUCTIVE_GAP, 0)
     row.button2:SetWidth(70)
     row.button2:SetText(CS.Data.L.ui_rename)
-    row.button2:Show()
     row.button2:SetScript("OnClick", function()
         CS.UI.PromptForText({
             title = CS.Data.L.ui_rename_category_prompt,
@@ -144,7 +161,6 @@ local function layoutCategoryRow(row, category, y)
     row.button3:SetPoint("RIGHT", row.button2, "LEFT", -4, 0)
     row.button3:SetWidth(90)
     row.button3:SetText(CS.Data.L.ui_add_phrase)
-    row.button3:Show()
     row.button3:SetScript("OnClick", function()
         CS.UI.PromptForText({
             title = CS.Data.L.ui_new_phrase_prompt,
@@ -187,6 +203,7 @@ local function layoutCategoryRow(row, category, y)
     row.label:SetFontObject("GameFontNormal")
     row.label:SetTextColor(1, 0.82, 0) -- WoW's standard header gold
     row.label:SetText(category.name)
+    row.hoverWidgets = { row.dragHandle, row.button1, row.button2, row.button3 }
     row:SetScript("OnMouseUp", function(_, button)
         if button == "LeftButton" then
             if collapsed then
@@ -206,7 +223,6 @@ local function layoutPhraseRow(row, phrase, y)
     row.button1:SetPoint("RIGHT", row, "RIGHT", 0, 0)
     row.button1:SetWidth(70)
     row.button1:SetText(CS.Data.L.ui_delete)
-    row.button1:Show()
     row.button1:SetScript("OnClick", function()
         CS.Tree.Delete(CampfireStokersDB, phrase.id)
         CS.Options.Refresh()
@@ -220,7 +236,6 @@ local function layoutPhraseRow(row, phrase, y)
     row.button2:SetPoint("RIGHT", row.button1, "LEFT", -DESTRUCTIVE_GAP, 0)
     row.button2:SetWidth(70)
     row.button2:SetText(CS.Data.L.ui_edit)
-    row.button2:Show()
     row.button2:SetScript("OnClick", function()
         CS.UI.PromptForText({
             title = CS.Data.L.ui_edit_phrase_prompt,
@@ -248,6 +263,7 @@ local function layoutPhraseRow(row, phrase, y)
     if not sendable then
         row.label:SetTextColor(0.7, 0.35, 0.35)
     end
+    row.hoverWidgets = { row.dragHandle, row.button1, row.button2 }
 end
 
 function CS.Options.HandleDragStop()
