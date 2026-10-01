@@ -52,7 +52,6 @@ local L = {
     ui_restore_defaults = "Restore Missing Defaults",
     ui_reset_confirm = "Reset the phrase tree to defaults? This replaces everything, including your own categories and phrases.",
     ui_delete_category_confirm = "Delete the category \"%s\" and all its phrases? This can't be undone.",
-    ui_auto_open_delay_label = "Auto-open delay (seconds):",
     ui_new_category_prompt = "New category name:",
     ui_new_phrase_prompt = "New phrase text:",
     ui_rename_category_prompt = "Rename category:",

@@ -38,7 +38,6 @@ read_globals = {
     "DEFAULT_CHAT_FRAME",
     "C_Timer",
     "UnitExists",
-    "GetTime",
     "GameTooltip",
 
     -- Options.lua

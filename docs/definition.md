@@ -102,7 +102,7 @@ A representative TOC: an Interface line with the confirmed number, Title Campfir
 
 The campfire panel is a small, undecorated frame anchored near the chat window by default, draggable and position-remembered account-wide. It opens automatically on campfire detection and can be dismissed with a close button or by standing up from the fire, and reopened anytime through an addon compartment entry or the slash command /campfire, or its alias /cfs.
 
-Auto-open is rate-limited. Each auto-open stores a timestamp in memory for the session only, never in SavedVariables, and the panel will not auto-open again until a configurable delay, 5 minutes by default, has passed since that timestamp. Opening the panel manually is never delayed.
+Auto-open has no delay or cooldown: it mirrors campfire detection directly, opening every time the player is detected at a fire. Opening the panel manually is, as always, immediate either way. Auto-close is not immediate, though: the campfire aura can drop and reapply repeatedly while the player sits at the fire without moving, so losing it starts a 10-second countdown in memory (never saved) rather than closing the panel outright; regaining the aura before the countdown elapses cancels it. Only a panel this add-on auto-opened is ever auto-closed - one opened manually stays up regardless of the aura.
 
 The panel shows the phrase tree as a collapsible outline, categories as expandable headers and phrases as single-line buttons beneath them. Clicking a phrase sends it immediately, using the panel's Say/Yell toggle unless the phrase starts with a slash command and briefly highlights the button as feedback.
 
@@ -110,7 +110,7 @@ The options panel, opened through the standard Blizzard Settings interface under
 
 ## Saved Variables and Persistence
 
-CampfireStokersDB is declared account-wide in the TOC's SavedVariables line, so a player's customized phrase tree follows them across characters and realms. It stores the phrase tree itself, the schemaVersion for future migrations, the ids of any default nodes the player has deleted, per-category collapsed or expanded state, the panel's last screen position, the auto-open delay, and the Say or Yell toggle state.
+CampfireStokersDB is declared account-wide in the TOC's SavedVariables line, so a player's customized phrase tree follows them across characters and realms. It stores the phrase tree itself, the schemaVersion for future migrations, the ids of any default nodes the player has deleted, per-category collapsed or expanded state, the panel's last screen position, and the Say or Yell toggle state.
 
 Every category and phrase in DefaultTree carries a stable id. Migrations are additive: on load, if schemaVersion is older than the add-on's current version, a migration function walks DefaultTree and adds any default category or phrase whose id is missing from the saved tree, without touching existing player edits, then bumps schemaVersion. The ids of default nodes the player has deleted are recorded, and migrations never restore them.
 
@@ -122,7 +122,7 @@ Every category and phrase in DefaultTree carries a stable id. Migrations are add
 4. Send.lua: slash parsing and %t handling, with unit tests.
 5. Detection.lua: event-driven detection and its secret-value guards.
 6. In-client verification: a self-test command that reports each client assumption (the campfire aura's spell ID, aura reads under secrecy, unknown-event registration, ReloadUI, %t through SendChatMessage, the hardware-event requirement, the addon compartment, C_Secrets, and the client's emote command globals), and a command that simulates campfire state. Test detection with the forced-restriction console variables.
-7. UI.lua: the campfire panel, the auto-open delay, and the %t disabling.
+7. UI.lua: the campfire panel, auto-open/auto-close, and the %t disabling.
 8. Options.lua: the phrase tree editor with drag and drop, the popup dialog, and the two defaults buttons.
 9. Launcher.lua: the addon compartment click handler declared in the TOC.
 10. Package a first build through the tag-triggered release flow and distribute it for player feedback.

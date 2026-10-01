@@ -136,10 +136,12 @@ and Launcher.lua's command routing and selftest checks
 anything that needs a real frame tree - UI.lua's actual panel construction
 (`CreatePanel`) and Options.lua's editor (`CreateCanvas`) - since mocking
 backdrops, font strings, and button templates well enough to exercise those
-for real isn't worth it; only each module's one pure helper is headless-
-tested (`tests/ui_spec.lua`'s `ShouldAutoOpen`, `tests/options_spec.lua`'s
-`FindDropIndex` drag-reorder math). WoWUnit is used for that in-client
-exploratory/self-test work (see the self-test and
+for real isn't worth it; UI.lua's auto-open/auto-close timing (a real
+C_Timer.NewTimer countdown) falls in the same manual-only bucket for the
+same reason. `tests/options_spec.lua`'s `FindDropIndex` drag-reorder math
+is the one piece of either module's logic simple and pure enough to be
+headless-tested. WoWUnit is used for that in-client exploratory/self-test
+work (see the self-test and
 simulate-campfire subcommands added in the "in-client verification"
 milestone). If you add a WoWUnit test group, list it in
 `## OptionalDeps: WoWUnit` in the TOC, guard its registration on WoWUnit

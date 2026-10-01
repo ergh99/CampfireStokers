@@ -11,7 +11,6 @@ local SPEC_FILES = {
     "detection_spec",
     "core_spec",
     "launcher_spec",
-    "ui_spec",
     "options_spec",
 }
 

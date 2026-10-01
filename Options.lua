@@ -456,29 +456,8 @@ function CS.Options.CreateCanvas()
         CS.UI.Refresh()
     end)
 
-    local delayLabel = canvas:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    delayLabel:SetPoint("TOPLEFT", addCategoryButton, "BOTTOMLEFT", 0, -16)
-    delayLabel:SetText(CS.Data.L.ui_auto_open_delay_label)
-
-    local delayEditBox = CreateFrame("EditBox", nil, canvas, "InputBoxTemplate")
-    delayEditBox:SetSize(60, 20)
-    delayEditBox:SetPoint("LEFT", delayLabel, "RIGHT", 8, 0)
-    delayEditBox:SetAutoFocus(false)
-    delayEditBox:SetNumeric(true)
-    local function commitDelay()
-        local value = tonumber(delayEditBox:GetText())
-        if value and value >= 0 then
-            CampfireStokersDB.autoOpenDelay = math.floor(value)
-        end
-        delayEditBox:SetText(tostring(CampfireStokersDB.autoOpenDelay))
-        delayEditBox:ClearFocus()
-    end
-    delayEditBox:SetScript("OnEnterPressed", commitDelay)
-    delayEditBox:SetScript("OnEditFocusLost", commitDelay)
-    canvas.delayEditBox = delayEditBox
-
     canvas.scrollFrame = CreateFrame("ScrollFrame", nil, canvas, "UIPanelScrollFrameTemplate")
-    canvas.scrollFrame:SetPoint("TOPLEFT", delayLabel, "BOTTOMLEFT", 0, -16)
+    canvas.scrollFrame:SetPoint("TOPLEFT", addCategoryButton, "BOTTOMLEFT", 0, -16)
     canvas.scrollFrame:SetPoint("BOTTOMRIGHT", canvas, "BOTTOMRIGHT", -32, 16)
 
     canvas.rowContainer = CreateFrame("Frame", nil, canvas.scrollFrame)
@@ -486,7 +465,6 @@ function CS.Options.CreateCanvas()
     canvas.scrollFrame:SetScrollChild(canvas.rowContainer)
 
     canvas:SetScript("OnShow", function()
-        canvas.delayEditBox:SetText(tostring(CampfireStokersDB.autoOpenDelay))
         CS.Options.Refresh()
     end)
 

@@ -356,3 +356,48 @@ rounds, each verified against the previous round's screenshots/reports:
 (floating/tooltip alignment, panel and text proportions, hover flicker,
 panel width vs. text) verified fixed with no further findings. This
 closes the post-T8 UX pass.
+
+## 2026-10-01 — Auto-open delay removed; auto-close is now a 10s grace period
+
+Design change requested directly (not an in-client finding): the
+campfire aura can drop and reapply repeatedly while the player sits at
+the fire without moving. Under the original edge-triggered design, each
+brief drop would immediately hide an auto-opened panel, then it would
+pop back open moments later when the aura reapplied - a flickering,
+unpleasant experience for a very realistic scenario, not an edge case.
+
+**Design decision**: removed the auto-open rate limit entirely
+(`CS.UI.ShouldAutoOpen`, `lastAutoOpenTime`, `CampfireStokersDB.autoOpenDelay`,
+and its Options.lua field are all gone) - auto-open now mirrors aura
+detection directly with no delay or cooldown, which is what "remove the
+need for any behavior around auto-open other than aura detection" meant
+in practice. In exchange, auto-*close* is no longer immediate: losing
+the aura starts a 10-second countdown (`C_Timer.NewTimer`, cancelled via
+`:Cancel()`) rather than hiding the panel outright; regaining the aura
+before the countdown elapses cancels it. Only a panel this add-on
+auto-opened is ever subject to this - a manually opened one still stays
+up regardless, unchanged from before.
+
+This also removes `tests/ui_spec.lua` (its only coverage was
+`ShouldAutoOpen`, which no longer exists) - the new logic is a straight
+line of frame/timer calls with no isolable pure decision left to test
+headlessly, so this now falls under AGENTS.md's manual-only bucket like
+the rest of `CreatePanel`.
+
+`docs/definition.md` and `docs/tasks.md` updated to describe the new
+behavior rather than the original rate-limited design, since this is a
+deliberate specification change, not a deviation to merely document.
+Also used this pass to check off every `docs/tasks.md` item from T1-T9
+that's actually done and verified - none had ever been marked, despite
+the whole build being complete through T9. S1-S4 (the four supporting
+skills) stay unchecked: their substance was folded directly into
+AGENTS.md, the test harness, and the CI/release workflows rather than
+built as the standalone reusable artifacts tasks.md describes, which is
+a real gap worth being honest about rather than checking off. T10
+(package and release) remains the only incomplete milestone, still
+blocked on pushing to a real GitHub remote.
+
+**Open**: the new auto-open/auto-close behavior is implemented and
+passes all automated checks (syntax, tests, wow-secret-lint) but is not
+yet confirmed in-client - the two T7 checklist items covering it are
+deliberately left unchecked pending that.

@@ -3,7 +3,11 @@ local CS = select(2, ...)
 ---@class CampfireStokersUI
 CS.UI = CS.UI or {}
 
-local AUTO_OPEN_DEFAULT_DELAY = 300 -- seconds; CampfireStokersDB.autoOpenDelay overrides
+-- The campfire aura can drop and reapply repeatedly while the player sits
+-- at the fire without moving (see docs/decision-log.md), so losing it
+-- doesn't close the panel immediately - it starts this grace-period
+-- countdown instead, cancelled if the aura comes back before it elapses.
+local AUTO_CLOSE_GRACE_SECONDS = 10
 local ROW_HEIGHT = 22
 local ROW_INDENT = 14
 local CATEGORY_GAP = 6
@@ -14,18 +18,15 @@ local HIGHLIGHT_DURATION = 0.15
 local frame
 local rowPool = {}
 local activeRows = {}
-local lastAutoOpenTime -- session-only (GetTime() seconds); never saved
+local pendingHideTimer
 
 CS.UI.isAutoOpened = false
 
--- Pure: whether enough time has passed since the last auto-open to allow
--- another one. lastTime == nil means "never auto-opened this session," so
--- the very first campfire of a session always opens the panel immediately.
-function CS.UI.ShouldAutoOpen(lastTime, now, delaySeconds)
-    if lastTime == nil then
-        return true
+local function cancelPendingHide()
+    if pendingHideTimer then
+        pendingHideTimer:Cancel()
+        pendingHideTimer = nil
     end
-    return (now - lastTime) >= delaySeconds
 end
 
 local function acquireRow()
@@ -230,6 +231,7 @@ function CS.UI.Show()
     if not frame then
         return
     end
+    cancelPendingHide()
     CS.UI.isAutoOpened = false
     frame:Show()
 end
@@ -238,6 +240,7 @@ function CS.UI.Hide()
     if not frame then
         return
     end
+    cancelPendingHide()
     CS.UI.isAutoOpened = false
     frame:Hide()
 end
@@ -253,29 +256,30 @@ function CS.UI.Toggle()
     end
 end
 
-local function autoOpen()
-    CS.UI.isAutoOpened = true
-    lastAutoOpenTime = GetTime()
-    frame:Show()
-end
-
--- Registered with CS.Detection as the state-changed callback. Auto-open is
--- rate-limited and only for entering a campfire; leaving one (which also
--- covers "auras just became restricted," since Detection reports that as
--- not-at-fire too) hides the panel only if this add-on is the one that
--- opened it - a manually opened panel stays open when you stand up.
+-- Registered with CS.Detection as the state-changed callback. Auto-open
+-- mirrors aura detection directly, with no delay or cooldown. Leaving the
+-- fire (which also covers "auras just became restricted," since Detection
+-- reports that as not-at-fire too) doesn't close the panel immediately -
+-- it starts the grace-period countdown instead, cancelled if the aura
+-- comes back before it elapses. Only a panel this add-on auto-opened is
+-- ever auto-closed; a manually opened one stays up regardless.
 function CS.UI.OnCampfireStateChanged(atFire)
     if not frame then
         return
     end
     if atFire then
-        local delay = CampfireStokersDB.autoOpenDelay or AUTO_OPEN_DEFAULT_DELAY
-        if CS.UI.ShouldAutoOpen(lastAutoOpenTime, GetTime(), delay) then
-            autoOpen()
+        cancelPendingHide()
+        if not frame:IsShown() then
+            CS.UI.isAutoOpened = true
+            frame:Show()
         end
     elseif CS.UI.isAutoOpened then
-        frame:Hide()
-        CS.UI.isAutoOpened = false
+        cancelPendingHide()
+        pendingHideTimer = C_Timer.NewTimer(AUTO_CLOSE_GRACE_SECONDS, function()
+            pendingHideTimer = nil
+            frame:Hide()
+            CS.UI.isAutoOpened = false
+        end)
     end
 end
 
@@ -477,7 +481,6 @@ end
 -- (CS.Send.Send / CS.Tree operations), nothing protected.
 function CS.UI.CreatePanel()
     CampfireStokersDB.collapsedCategories = CampfireStokersDB.collapsedCategories or {}
-    CampfireStokersDB.autoOpenDelay = CampfireStokersDB.autoOpenDelay or AUTO_OPEN_DEFAULT_DELAY
     CampfireStokersDB.sendMode = CampfireStokersDB.sendMode or "SAY"
 
     frame = CreateFrame("Frame", "CampfireStokersPanel", UIParent, "BackdropTemplate")
