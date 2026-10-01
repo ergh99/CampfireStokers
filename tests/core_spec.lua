@@ -44,7 +44,7 @@ local function loadCoreWithDependencies()
     loadModule("Detection.lua", "CampfireStokers", CS)
 
     local realCreateFrame = _G.CreateFrame
-    _G.CreateFrame = function(...)
+    _G.CreateFrame = function()
         capturedFrame = wowStub.makeFakeFrame()
         return capturedFrame
     end
@@ -58,7 +58,7 @@ end
 
 tests["Core.lua registers ADDON_LOADED and ignores other addons loading"] = function()
     _G.CampfireStokersDB = nil
-    local CS, frame = loadCoreWithDependencies()
+    local _, frame = loadCoreWithDependencies()
 
     assert(frame.events.ADDON_LOADED == true)
 

@@ -41,8 +41,13 @@ read_globals = {
     "C_UnitAuras",
     "canaccessvalue",
 
-    -- Launcher.lua
-    "SlashCmdList",
+    -- Launcher.lua. SlashCmdList itself must stay read-only (never
+    -- reassigned), but other_fields = true is needed because we legitimately
+    -- write a new key into it (SlashCmdList.CAMPFIRESTOKERS = handler) -
+    -- the standard way every WoW addon registers a slash command, flagged
+    -- by Luacheck's default "read_globals means read-only fields too"
+    -- the first time this actually ran (see docs/decision-log.md).
+    SlashCmdList = { other_fields = true },
     "AddonCompartmentFrame",
 
     -- UI.lua
@@ -52,9 +57,21 @@ read_globals = {
     "UnitExists",
     "GameTooltip",
 
-    -- Options.lua
-    "StaticPopupDialogs",
+    -- Options.lua. Same other_fields reasoning as SlashCmdList above: we
+    -- write new dialog definitions into StaticPopupDialogs, never reassign
+    -- the table itself.
+    StaticPopupDialogs = { other_fields = true },
     "StaticPopup_Show",
     "Settings",
     "GetCursorPosition",
+}
+
+-- tests/ mocks real WoW API globals by assigning directly over them (e.g.
+-- SendChatMessage = function(...) ... end) to intercept calls from the
+-- module under test - the entire point of a mock. That's a real reassignment
+-- Luacheck's default read_globals correctly flags as suspicious for
+-- production code, so it's only loosened for this one global, in this one
+-- directory, not everywhere.
+files["tests/**/*.lua"] = {
+    globals = { "SendChatMessage", "DoEmote" },
 }

@@ -472,3 +472,36 @@ exclusions (`exclude_files`) to `.luacheckrc` so `luacheck .` doesn't
 hit the same problem on its own pass right after. Verified locally that
 the corrected find command lists exactly the 19 real Lua files in this
 repo, nothing else.
+
+**Third failure, same cycle: the real `luacheck` tool had never actually
+run before.** Local verification of `.luacheckrc` has been syntax-only
+all along - `luarocks install luacheck` never completed successfully on
+this machine (a Lua-version mismatch hit early on and was never
+resolved; see the T1 scaffolding notes). This CI run is the first time
+the actual tool evaluated this config, and it found three genuine,
+previously-invisible issues, 0 errors / 7 warnings:
+
+1. `Launcher.lua`/`Options.lua` writing new keys into `SlashCmdList` and
+   `StaticPopupDialogs` (`SlashCmdList.CAMPFIRESTOKERS = handler`, two
+   `StaticPopupDialogs[...] = {...}` entries) - legitimate, standard WoW
+   addon patterns, but Luacheck's `read_globals` means read-only
+   *fields* too, not just the global itself, by default.
+2. `tests/send_spec.lua` reassigning `SendChatMessage`/`DoEmote` directly
+   to mock them - exactly what a test mock needs to do, but indistinguishable
+   from a real "read-only global reassigned" problem without a
+   path-scoped exception.
+3. Two ordinary unused-variable warnings in `tests/core_spec.lua` (an
+   unused `...` in a mock function, an unused `CS` local) - unrelated to
+   the WoW-API-globals pattern above, just plain cleanup.
+
+**Design decision**: gave `SlashCmdList` and `StaticPopupDialogs` the
+table form with `other_fields = true` (fields are writable, the global
+itself still isn't - we never want `SlashCmdList = somethingElse`, only
+new keys written into the existing table), added a `files["tests/**/*.lua"]`
+override making `SendChatMessage`/`DoEmote` fully read-write *only*
+under `tests/`, and fixed the two unused-variable warnings directly.
+Confirms the broader lesson this whole T10 pass has been teaching: this
+project's local tooling story has real gaps (no working local
+`luacheck`, a Lua version mismatch that was never actually resolved,
+just noted and moved past), and CI is the only place several of these
+checks have ever actually run for real.
