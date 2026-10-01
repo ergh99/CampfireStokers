@@ -9,10 +9,10 @@ CS.UI = CS.UI or {}
 -- countdown instead, cancelled if the aura comes back before it elapses.
 local AUTO_CLOSE_GRACE_SECONDS = 10
 local ROW_HEIGHT = 22
-local ROW_INDENT = 14
+local ROW_INDENT = 28
 local CATEGORY_GAP = 6
 local PANEL_WIDTH = 460
-local TOP_CONTROLS_HEIGHT = 62
+local TOP_CONTROLS_HEIGHT = 66
 local HIGHLIGHT_DURATION = 0.15
 
 local frame
@@ -39,8 +39,8 @@ local function acquireRow()
         -- prefix, matching how the rest of the default UI shows
         -- collapsible sections.
         row.collapseIcon = CreateFrame("Button", nil, row)
-        row.collapseIcon:SetSize(14, 14)
-        row.collapseIcon:SetPoint("LEFT", row, "LEFT", 2, 0)
+        row.collapseIcon:SetSize(16, 16)
+        row.collapseIcon:SetPoint("LEFT", row, "LEFT", 6, 0)
         row.collapseIcon:SetHighlightTexture("Interface/Buttons/UI-PlusButton-Hilight", "ADD")
 
         row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -192,7 +192,7 @@ function CS.UI.Refresh()
             onCategoryClick(category)
         end)
         headerRow.text:ClearAllPoints()
-        headerRow.text:SetPoint("LEFT", headerRow.collapseIcon, "RIGHT", 4, 0)
+        headerRow.text:SetPoint("LEFT", headerRow.collapseIcon, "RIGHT", 6, 0)
         headerRow.text:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
         headerRow.text:SetFontObject("GameFontNormalLarge")
         headerRow.text:SetTextColor(1, 0.82, 0) -- WoW's standard header gold
@@ -517,7 +517,7 @@ function CS.UI.CreatePanel()
     -- what this floating, undecorated frame even is) and doubles as the
     -- expected place to grab it, since a title strip is the universal
     -- convention for "this is how you move this window."
-    local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     titleText:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -10)
     titleText:SetText(CS.Data.L.ui_panel_title)
 
