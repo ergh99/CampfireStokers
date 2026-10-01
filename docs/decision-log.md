@@ -523,3 +523,12 @@ checks - including, now, this `.luacheckrc` syntax itself - have ever
 actually run for real. Guessing at Luacheck's config format and
 verifying against real CI runs turned out faster and more reliable than
 trying to recall the exact documented behavior from memory.
+
+**Resolved (2026-10-01) - first fully green CI run.** Five pushes to
+get here (binary naming, tool-installed directories, two rounds of
+Luacheck config), but confirmed end to end: syntax check, Luacheck, all
+81 unit tests, and `wow-secret-lint` (0 errors, 0 warnings) all pass for
+real. This also closes T1's last open checklist item - `wow-secret-lint`
+does scan the addon for real in CI, not just locally via `npx`, since
+the `path` fix from T1 is confirmed working in the actual CI
+environment now, not only in local verification.

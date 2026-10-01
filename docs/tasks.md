@@ -19,7 +19,7 @@ Depends on: nothing. S3 helps.
 - [x] The TOC loads Data.lua, Tree.lua, Send.lua, Detection.lua, UI.lua, Launcher.lua, Options.lua and Core.lua, in that order, and every empty module loads without errors.
 - [x] The folder name, the TOC filename and the .pkgmeta package-as value are all CampfireStokers.
 - [x] CI runs on each push: luac5.1 syntax, Luacheck with the compartment handler allowed as a global, wow-secret-lint in strict mode pinned to a commit, and the unit tests.
-- [ ] The first CI run confirms wow-secret-lint actually scans the add-on and does not skip it as non-retail. If it skips, CI points it at the Lua files directly. (Confirmed locally that the fix works - see AGENTS.md's "Resolved item" - but no CI has actually run yet; this repo is still local-only. Revisit at T10.)
+- [x] The first CI run confirms wow-secret-lint actually scans the add-on and does not skip it as non-retail. If it skips, CI points it at the Lua files directly. (Confirmed in real CI 2026-10-01 - see docs/decision-log.md's T10 entries - after fixing several CI-only issues no local verification could have caught: lua/luac binary naming, tool-installed .lua//.luarocks/ directories, and two rounds of Luacheck config for globals this code legitimately writes.)
 - [ ] Pushing a v* tag builds a zip through the BigWigs packager. (T10, not yet attempted - needs a GitHub remote.)
 - [x] AGENTS.md covers the Lua 5.1 and no-globals rules, the secret-value rules, the TOC gate and two-month recency rule, and the test, lint and release commands.
 
