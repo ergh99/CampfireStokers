@@ -367,12 +367,25 @@ function CS.Options.Refresh()
 end
 
 local function registerPopups()
+    -- Restore Missing Defaults is effectively a gentler subtype of Reset
+    -- (additive only, vs. replacing everything), so it lives as a third
+    -- button on the same confirmation dialog rather than as its own
+    -- separate top-level button. button3's handler is OnAlt - unconfirmed
+    -- in-client on this build (see docs/decision-log.md): this dialog
+    -- template already deviated from the classic one once (the EditBox
+    -- field rename), so this 3-button wiring needs verifying too.
     StaticPopupDialogs["CAMPFIRESTOKERS_RESET_CONFIRM"] = {
         text = CS.Data.L.ui_reset_confirm,
-        button1 = CS.Data.L.ui_reset_defaults,
+        button1 = CS.Data.L.ui_confirm,
         button2 = CS.Data.L.ui_cancel,
+        button3 = CS.Data.L.ui_restore_defaults,
         OnAccept = function()
             CS.Tree.ResetToDefaults(CampfireStokersDB)
+            CS.Options.Refresh()
+            CS.UI.Refresh()
+        end,
+        OnAlt = function()
+            CS.Tree.RestoreMissingDefaults(CampfireStokersDB)
             CS.Options.Refresh()
             CS.UI.Refresh()
         end,
@@ -438,27 +451,21 @@ function CS.Options.CreateCanvas()
         })
     end)
 
+    -- Low priority relative to everything above (it's a rare, destructive
+    -- escape hatch, not a day-to-day action), so it lives at the bottom of
+    -- the window rather than competing with Add Category up top.
     local resetButton = CreateFrame("Button", nil, canvas, "UIPanelButtonTemplate")
     resetButton:SetSize(140, 22)
-    resetButton:SetPoint("LEFT", addCategoryButton, "RIGHT", 8, 0)
+    resetButton:SetPoint("BOTTOMLEFT", canvas, "BOTTOMLEFT", 16, 16)
     resetButton:SetText(CS.Data.L.ui_reset_defaults)
     resetButton:SetScript("OnClick", function()
         StaticPopup_Show("CAMPFIRESTOKERS_RESET_CONFIRM")
     end)
 
-    local restoreButton = CreateFrame("Button", nil, canvas, "UIPanelButtonTemplate")
-    restoreButton:SetSize(170, 22)
-    restoreButton:SetPoint("LEFT", resetButton, "RIGHT", 8, 0)
-    restoreButton:SetText(CS.Data.L.ui_restore_defaults)
-    restoreButton:SetScript("OnClick", function()
-        CS.Tree.RestoreMissingDefaults(CampfireStokersDB)
-        CS.Options.Refresh()
-        CS.UI.Refresh()
-    end)
-
     canvas.scrollFrame = CreateFrame("ScrollFrame", nil, canvas, "UIPanelScrollFrameTemplate")
     canvas.scrollFrame:SetPoint("TOPLEFT", addCategoryButton, "BOTTOMLEFT", 0, -16)
-    canvas.scrollFrame:SetPoint("BOTTOMRIGHT", canvas, "BOTTOMRIGHT", -32, 16)
+    canvas.scrollFrame:SetPoint("RIGHT", canvas, "RIGHT", -32, 0)
+    canvas.scrollFrame:SetPoint("BOTTOM", resetButton, "TOP", 0, 16)
 
     canvas.rowContainer = CreateFrame("Frame", nil, canvas.scrollFrame)
     canvas.rowContainer:SetSize(1, 1)
