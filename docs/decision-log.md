@@ -308,3 +308,51 @@ phrases, the 255-character limit rejection and its message, Reset to
 Defaults and Restore Missing Defaults, and persistence across `/reload`.
 No further findings; every T8 checklist item from tasks.md is done and
 verified in-client.
+
+## 2026-09-30/10-01 — Post-T8 UX pass
+
+Screenshots after T8 closed showed the UI was functionally complete but
+not usable: an unreviewable single-line 255-character text field that
+discarded typed text on validation failure, destructive Delete buttons
+with no confirmation sitting flush against safe ones, category/phrase
+rows visually indistinguishable from each other, an unlabeled
+undraggable-looking campfire panel, an ambiguous single-label Say/Yell
+toggle, and disabled phrases with no explanation. Grounded in Nielsen's
+heuristics, Fitts's Law, and Gestalt grouping; fixed across several
+rounds, each verified against the previous round's screenshots/reports:
+
+- Replaced the StaticPopup text-input with a custom multi-line,
+  reviewable popup (`CS.UI.PromptForText`) with a live character
+  counter and an inline error that preserves typed text on failure.
+- Category deletion now confirms (cascades to every phrase in it);
+  phrase deletion gets a widened gap before Delete instead.
+- Category rows use Blizzard's standard disclosure icons in a larger,
+  gold-tinted font instead of a "+"/"-" text prefix.
+- Campfire panel gained a title bar and a real two-state Say/Yell
+  control instead of one button with a mutating label.
+- Disabled/flagged phrases show a tooltip explaining why.
+- Found and fixed two bugs during review before they ever shipped: a
+  missing LEFT anchor on phrase row text (would have rendered with an
+  undefined left edge), and a stale OnMouseUp handler surviving row
+  pool reuse across category/phrase row types.
+- **Second feedback round** caught: tooltips never fired at all
+  (`:SetEnabled(false)` stops a Button from receiving OnEnter/OnLeave in
+  WoW entirely - removed reliance on it, gating clickability via OnClick
+  alone instead); the campfire panel's drag handle was pure decoration
+  (individual rows were never actually draggable there, only the whole
+  panel is - removed it); hover-reveal flickered rapidly on the buttons
+  themselves (moving onto a shown button makes it the topmost frame,
+  firing the row's OnLeave even though the cursor never left - fixed by
+  hooking the same hover check onto the buttons' own OnEnter/OnLeave);
+  tooltip anchored to the frame rather than the cursor (switched to
+  ANCHOR_CURSOR_RIGHT); text too small and buttons disproportionately
+  large on a high-resolution (3440x1440) display, close button
+  overlapping the panel's border, and default phrases still wrapping -
+  bumped font sizes a step in both windows, widened the campfire panel
+  (260->460 across two passes), and inset the close button to clear the
+  border.
+
+**Resolved (2026-10-01) — confirmed clean.** All four follow-up items
+(floating/tooltip alignment, panel and text proportions, hover flicker,
+panel width vs. text) verified fixed with no further findings. This
+closes the post-T8 UX pass.
