@@ -94,6 +94,17 @@ are only caught by testing on the live client (see docs/definition.md's
 
 ## Test, secret-value lint and release commands
 
+The Lua 5.1 binary name depends entirely on how it got installed, and
+varies by environment: CI (`leafo/gh-actions-lua`, which builds from
+source) installs plain `lua`/`luac`; Debian/Ubuntu's `apt install lua5.1`
+names them `lua5.1`/`luac5.1`; Windows via scoop names them `lua51`/`luac51`.
+Confirmed the hard way: `ci.yml` originally assumed the apt names and the
+first real CI run failed outright with "command not found" (see
+docs/decision-log.md). `ci.yml` is the authoritative, enforced version;
+the commands below use the apt-style names as the illustrative default -
+substitute whatever `which lua5.1 lua51 lua luac5.1 luac51 luac` finds on
+your own machine.
+
 ```sh
 # Syntax check every Lua file
 find . -name '*.lua' -not -path './lua_modules/*' -print0 | xargs -0 -n1 luac5.1 -p

@@ -20,16 +20,21 @@ jobs:
         run: luarocks install luacheck
 
       - name: luac5.1 syntax check
+        # leafo/gh-actions-lua builds Lua from source and installs it as
+        # plain `lua`/`luac` (no version suffix) - not the lua5.1/luac5.1
+        # names apt's Debian-packaged Lua uses, which is what this
+        # originally assumed (confirmed by the first real CI run failing
+        # with "command not found": see docs/decision-log.md).
         run: |
           set -e
           find . -name '*.lua' -not -path './lua_modules/*' -print0 \
-            | xargs -0 -n1 luac5.1 -p
+            | xargs -0 -n1 luac -p
 
       - name: Luacheck
         run: luacheck .
 
       - name: Unit tests
-        run: lua5.1 tests/run_tests.lua
+        run: lua tests/run_tests.lua
 
       - name: wow-secret-lint
         # TOC-based discovery skips this addon: its Interface line (16001)

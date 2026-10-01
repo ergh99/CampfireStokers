@@ -429,3 +429,27 @@ classic one once before (the `EditBox` field capitalization). Worth
 noting for future API-surface guesses in this dialog system: some parts
 of the classic contract carried over unchanged, others didn't - no
 blanket assumption either way holds.
+
+## 2026-10-01 — T10: first push, first real CI run fails on luac5.1/lua5.1 naming
+
+Pushed to a new public GitHub repo (github.com/ergh99/CampfireStokers)
+for the first time this session. The first real CI run - something
+local verification could never fully substitute for, since this
+machine's own Lua install uses yet another naming scheme - failed
+immediately at the syntax-check step: `luac5.1: command not found`
+(exit 127).
+
+**Root cause**: `leafo/gh-actions-lua@v10` builds Lua from source and
+installs the result as plain `lua`/`luac`, with no version suffix at
+all - not the `lua5.1`/`luac5.1` names Debian/Ubuntu's `apt install
+lua5.1` uses, which `ci.yml` had assumed without ever actually running
+in CI to check. (For reference, this is now the *third* different
+naming convention seen across this project: apt's `lua5.1`/`luac5.1`,
+Windows scoop's `lua51`/`luac51`, and gh-actions-lua's plain
+`lua`/`luac` - there's no universal name to assume anywhere.)
+
+**Design decision: fixed `ci.yml` to use `lua`/`luac`**, matching what
+this specific action actually produces, confirmed locally against this
+machine's own `lua`/`luac` shims before pushing again. AGENTS.md's
+documented commands updated with a note explaining the naming varies by
+environment entirely, rather than asserting one name as correct.
