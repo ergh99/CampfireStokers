@@ -397,7 +397,35 @@ a real gap worth being honest about rather than checking off. T10
 (package and release) remains the only incomplete milestone, still
 blocked on pushing to a real GitHub remote.
 
-**Open**: the new auto-open/auto-close behavior is implemented and
-passes all automated checks (syntax, tests, wow-secret-lint) but is not
-yet confirmed in-client - the two T7 checklist items covering it are
-deliberately left unchecked pending that.
+**Resolved (2026-10-01)**: confirmed working in-client - auto-open fires
+immediately with no delay, and stepping away briefly (under 10s) leaves
+the panel open while stepping away longer closes it after the full
+countdown. The two T7 checklist items are now checked in tasks.md.
+
+## 2026-10-01 — Options.lua polish: collapse icon spacing, title size, Reset placement
+
+Three rounds of follow-up feedback after the post-T8 UX pass, all
+confirmed fixed with no further findings:
+
+- Collapse icon buttons felt crowded against the row edge and label
+  text once they replaced the old "+"/"-" prefix. Sized up (14->16),
+  given more inset from the row edge (2->6) and more gap before the
+  label (4->6); phrase indent bumped to match (14->28), since phrase
+  text was actually starting less indented than its own category's
+  label once the icon took up space.
+- Campfire panel title bumped from GameFontNormal to GameFontNormalLarge.
+- Reset to Defaults moved from the options canvas's top button row
+  (competing with Add Category) to the bottom, as a low-priority,
+  rarely-used destructive action. Restore Missing Defaults folded into
+  the Reset confirmation dialog as its third button (Confirm / Restore
+  Missing Defaults / Cancel) rather than staying a separate top-level
+  button, since it's effectively a gentler subtype of the same action.
+
+**Resolved (2026-10-01)**: all confirmed working, including the one
+flagged uncertainty - the dialog's third button uses the classic
+StaticPopup `button3`/`OnAlt` convention, which worked as expected
+despite this build's dialog system having already deviated from the
+classic one once before (the `EditBox` field capitalization). Worth
+noting for future API-surface guesses in this dialog system: some parts
+of the classic contract carried over unchanged, others didn't - no
+blanket assumption either way holds.

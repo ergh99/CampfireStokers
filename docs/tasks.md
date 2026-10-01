@@ -90,8 +90,8 @@ Depends on: T6.
 - [x] Clicking a phrase sends it immediately through Send.lua with no confirmation and briefly highlights the button.
 - [x] A Say/Yell toggle in the panel is saved and applies to phrases without a slash command.
 - [x] The panel auto-opens when state becomes at fire, and it has a close button.
-- [ ] Auto-open mirrors aura detection directly, with no delay or cooldown. Opening the panel manually is, as always, immediate. (Changed 2026-10-01 from the original rate-limited design - see docs/decision-log.md. Not yet confirmed in-client.)
-- [ ] Losing the campfire aura (including while auras are restricted, which Detection reports as not-at-fire too) starts a 10-second countdown before an auto-opened panel closes, cancelled if the aura is regained first - the aura can drop and reapply repeatedly while the player sits still, so closing immediately on the first loss would flicker the panel shut and open. (Changed 2026-10-01; not yet confirmed in-client.)
+- [x] Auto-open mirrors aura detection directly, with no delay or cooldown. Opening the panel manually is, as always, immediate. (Changed 2026-10-01 from the original rate-limited design - see docs/decision-log.md.)
+- [x] Losing the campfire aura (including while auras are restricted, which Detection reports as not-at-fire too) starts a 10-second countdown before an auto-opened panel closes, cancelled if the aura is regained first - the aura can drop and reapply repeatedly while the player sits still, so closing immediately on the first loss would flicker the panel shut and open. (Changed 2026-10-01.)
 - [x] Phrases containing %t are disabled until a target is selected, re-checked on PLAYER_TARGET_CHANGED.
 - [x] Unsendable phrases are visibly flagged.
 - [x] It uses no secure templates, and all strings come from the string table.
