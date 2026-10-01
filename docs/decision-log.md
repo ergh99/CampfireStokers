@@ -532,3 +532,22 @@ real. This also closes T1's last open checklist item - `wow-secret-lint`
 does scan the addon for real in CI, not just locally via `npx`, since
 the `path` fix from T1 is confirmed working in the actual CI
 environment now, not only in local verification.
+
+## 2026-10-01 — T10 closed: v0.1.0 tagged, packaged, and released
+
+With CI green, tagged and pushed `v0.1.0`. The release workflow
+(`BigWigsMods/packager`, also never run for real before this) succeeded
+on the first attempt - no further fixes needed here, unlike `ci.yml`.
+Downloaded the actual release zip and verified it directly rather than
+trusting a green checkmark alone: folder name `CampfireStokers`, correct
+module load order, `## Version: v0.1.0` correctly substituted for
+`@project-version@` in the TOC, and none of `docs/`, `tests/`,
+`.github/`, or `AGENTS.md` included - matching `.pkgmeta`'s `ignore`
+list exactly. Public release live at
+github.com/ergh99/CampfireStokers/releases/tag/v0.1.0.
+
+This closes T10, and with it every milestone in `docs/tasks.md` except
+S1-S4 (the four supporting skills, whose substance was folded into
+AGENTS.md/the test harness/CI rather than built as the standalone
+artifacts tasks.md describes - a real, acknowledged gap, not an
+oversight). The build is complete, released, and publicly downloadable.

@@ -122,6 +122,6 @@ Depends on: T8.
 
 Depends on: T9.
 
-- [ ] A v* tag builds the zip through the packager, the zip folder is CampfireStokers, and the TOC Version is substituted.
-- [ ] Every T6 check passes, or the failures are recorded and accepted in the Decision Log.
-- [ ] The first build is distributed for player feedback.
+- [x] A v* tag builds the zip through the packager, the zip folder is CampfireStokers, and the TOC Version is substituted. (v0.1.0, 2026-10-01: verified by downloading the actual release zip - correct folder name, correct load order, `## Version: v0.1.0` substituted for `@project-version@`, none of docs/tests/.github/AGENTS.md included.)
+- [x] Every T6 check passes, or the failures are recorded and accepted in the Decision Log. (All nine checks resolved - pass, or a recorded/accepted finding - per the T6 decision-log entries.)
+- [x] The first build is distributed for player feedback. (Public release at github.com/ergh99/CampfireStokers/releases/tag/v0.1.0 - live and downloadable. Actually gathering player feedback is an ongoing activity beyond this checklist item's scope.)
