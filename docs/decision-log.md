@@ -494,14 +494,32 @@ previously-invisible issues, 0 errors / 7 warnings:
    unused `...` in a mock function, an unused `CS` local) - unrelated to
    the WoW-API-globals pattern above, just plain cleanup.
 
-**Design decision**: gave `SlashCmdList` and `StaticPopupDialogs` the
-table form with `other_fields = true` (fields are writable, the global
-itself still isn't - we never want `SlashCmdList = somethingElse`, only
-new keys written into the existing table), added a `files["tests/**/*.lua"]`
-override making `SendChatMessage`/`DoEmote` fully read-write *only*
-under `tests/`, and fixed the two unused-variable warnings directly.
+**Design decision, attempt 1 (didn't work)**: gave `SlashCmdList` and
+`StaticPopupDialogs` the table form with `other_fields = true` in
+`read_globals`. Pushed, re-ran CI: both warnings were still there,
+unchanged. The `files["tests/**/*.lua"]` override for
+`SendChatMessage`/`DoEmote` *did* work on the same push, and the two
+unused-variable warnings were fixed, so only this one mechanism was
+wrong, not the general approach.
+
+**Design decision, attempt 2 (confirmed working)**: switched to
+dotted-path entries in the top-level `globals` list instead -
+`"SlashCmdList.CAMPFIRESTOKERS"`,
+`"StaticPopupDialogs.CAMPFIRESTOKERS_RESET_CONFIRM"`,
+`"StaticPopupDialogs.CAMPFIRESTOKERS_DELETE_CATEGORY_CONFIRM"` -
+declaring each exact field this code actually writes as writable,
+rather than trying to open up every field on the table via
+`other_fields`. `SlashCmdList`/`StaticPopupDialogs` themselves stay in
+`read_globals` (the tables can't be reassigned, only these three
+specific keys can be set). More precise than the first attempt would
+have been anyway, even once working - matches AGENTS.md's "add only
+what you use" principle for `read_globals` more exactly.
+
 Confirms the broader lesson this whole T10 pass has been teaching: this
 project's local tooling story has real gaps (no working local
 `luacheck`, a Lua version mismatch that was never actually resolved,
 just noted and moved past), and CI is the only place several of these
-checks have ever actually run for real.
+checks - including, now, this `.luacheckrc` syntax itself - have ever
+actually run for real. Guessing at Luacheck's config format and
+verifying against real CI runs turned out faster and more reliable than
+trying to recall the exact documented behavior from memory.

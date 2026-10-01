@@ -18,11 +18,20 @@ exclude_files = {
 -- specific WoW API convention (SavedVariables, AddonCompartmentFunc, or the
 -- SLASH_x/N slash-command registration); see AGENTS.md, "Lua 5.1 and
 -- no-globals rules".
+-- Dotted-path entries (e.g. "SlashCmdList.CAMPFIRESTOKERS") declare one
+-- specific field of a WoW-owned table (itself read-only, see read_globals
+-- below) as writable, without opening up every other field on that table.
+-- The { other_fields = true } table form was tried first and didn't work -
+-- Luacheck still flagged both as read-only field writes (see
+-- docs/decision-log.md) - so this is the confirmed-working approach.
 globals = {
     "CampfireStokersDB",
     "CampfireStokers_OnAddonCompartmentClick",
     "SLASH_CAMPFIRESTOKERS1",
     "SLASH_CAMPFIRESTOKERS2",
+    "SlashCmdList.CAMPFIRESTOKERS",
+    "StaticPopupDialogs.CAMPFIRESTOKERS_RESET_CONFIRM",
+    "StaticPopupDialogs.CAMPFIRESTOKERS_DELETE_CATEGORY_CONFIRM",
 }
 
 -- WoW API globals this addon reads, added one at a time as modules start
@@ -41,13 +50,11 @@ read_globals = {
     "C_UnitAuras",
     "canaccessvalue",
 
-    -- Launcher.lua. SlashCmdList itself must stay read-only (never
-    -- reassigned), but other_fields = true is needed because we legitimately
-    -- write a new key into it (SlashCmdList.CAMPFIRESTOKERS = handler) -
-    -- the standard way every WoW addon registers a slash command, flagged
-    -- by Luacheck's default "read_globals means read-only fields too"
-    -- the first time this actually ran (see docs/decision-log.md).
-    SlashCmdList = { other_fields = true },
+    -- Launcher.lua. SlashCmdList.CAMPFIRESTOKERS is separately declared
+    -- writable above (globals), since we legitimately write that one new
+    -- key into it - the standard way every WoW addon registers a slash
+    -- command - without opening up every other field on the table.
+    "SlashCmdList",
     "AddonCompartmentFrame",
 
     -- UI.lua
@@ -57,10 +64,10 @@ read_globals = {
     "UnitExists",
     "GameTooltip",
 
-    -- Options.lua. Same other_fields reasoning as SlashCmdList above: we
-    -- write new dialog definitions into StaticPopupDialogs, never reassign
-    -- the table itself.
-    StaticPopupDialogs = { other_fields = true },
+    -- Options.lua. The two StaticPopupDialogs[...] keys this file writes
+    -- are separately declared writable above (globals), same reasoning as
+    -- SlashCmdList.
+    "StaticPopupDialogs",
     "StaticPopup_Show",
     "Settings",
     "GetCursorPosition",
