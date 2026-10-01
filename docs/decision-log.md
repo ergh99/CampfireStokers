@@ -453,3 +453,22 @@ this specific action actually produces, confirmed locally against this
 machine's own `lua`/`luac` shims before pushing again. AGENTS.md's
 documented commands updated with a note explaining the naming varies by
 environment entirely, rather than asserting one name as correct.
+
+**Second failure, same push cycle**: fixing the binary name got further
+but hit two more issues from the same root cause - `leafo/gh-actions-lua`
+and `luarocks` both install *into the repo working copy* in CI (`.lua/`
+and `.luarocks/` respectively), something no local run could surface
+since neither tool is installed that way on this machine. `find . -name
+'*.lua'` doesn't distinguish files from directories, so it matched the
+`.lua/` directory itself ("cannot read ./.lua: Is a directory"), and
+separately matched a real `.lua` file *inside* `.luarocks/` -
+`luacheck/vendor/sha1/lua53_ops.lua`, part of luacheck's own vendored
+dependencies, written in Lua 5.3 syntax (not ours to fix, and not
+something that should ever have been scanned as our code).
+
+**Design decision: added `-type f` plus explicit excludes for `.lua/`
+and `.luarocks/`** to `ci.yml`'s find command, and added the same
+exclusions (`exclude_files`) to `.luacheckrc` so `luacheck .` doesn't
+hit the same problem on its own pass right after. Verified locally that
+the corrected find command lists exactly the 19 real Lua files in this
+repo, nothing else.

@@ -2,6 +2,18 @@ std = "lua51"
 
 max_line_length = false
 
+-- leafo/gh-actions-lua and luarocks both install into the repo working
+-- copy in CI (.lua/ and .luarocks/ respectively, confirmed the hard way
+-- when the first real CI run's syntax check tried to read .lua as a Lua
+-- file and choked on a Lua 5.3-syntax vendor file under .luarocks/ - see
+-- docs/decision-log.md). Luacheck would otherwise lint that installed,
+-- third-party code as if it were ours.
+exclude_files = {
+    ".lua/**",
+    ".luarocks/**",
+    "lua_modules/**",
+}
+
 -- Real globals this addon defines. Each one is required by name by a
 -- specific WoW API convention (SavedVariables, AddonCompartmentFunc, or the
 -- SLASH_x/N slash-command registration); see AGENTS.md, "Lua 5.1 and

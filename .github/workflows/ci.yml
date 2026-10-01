@@ -24,10 +24,18 @@ jobs:
         # plain `lua`/`luac` (no version suffix) - not the lua5.1/luac5.1
         # names apt's Debian-packaged Lua uses, which is what this
         # originally assumed (confirmed by the first real CI run failing
-        # with "command not found": see docs/decision-log.md).
+        # with "command not found": see docs/decision-log.md). It also
+        # installs into a .lua/ directory inside the repo working copy,
+        # and luarocks installs into .luarocks/ the same way - both need
+        # excluding (and -type f, since -name '*.lua' also matches a
+        # directory literally named ".lua") or this picks up the action's
+        # own files, including a Lua 5.3-syntax vendor file from
+        # luacheck's own dependencies that isn't our code to fix.
         run: |
           set -e
-          find . -name '*.lua' -not -path './lua_modules/*' -print0 \
+          find . -type f -name '*.lua' \
+            -not -path './.lua/*' -not -path './.luarocks/*' \
+            -not -path './lua_modules/*' -print0 \
             | xargs -0 -n1 luac -p
 
       - name: Luacheck
