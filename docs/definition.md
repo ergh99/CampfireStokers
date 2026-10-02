@@ -145,31 +145,109 @@ button attempts, in order, with no confirmation dialog at any step
    the specific missing items and quantities generated dynamically into
    the message text.
 
-**Explicitly not resolved by this capture** - all of the following need
-real in-client investigation, the same way the campfire spell ID, the
-emote command globals, and the Settings canvas API did earlier in this
-project, before implementation can lock in its design:
+**Confirmed via in-client research (2026-10-02)**, against a test subset
+of five professions (Fishing/Fish Bowl, Alchemy/Mana Well,
+Herbalism/Incense Candle, Cooking/Basic Campfire Kit, First Aid/First Aid
+Kit); the full command-by-command log lives in `docs/research.txt`:
 
-- The actual item names, spell/item IDs, and recipe reagent lists for each
-  profession's good. None of this exists in any data available to us yet.
-- Whether a profession-detection API exists and behaves as retail's
-  `GetProfessions()`/`GetProfessionInfo()` do, or differently.
-- How "the campfire good for profession X" is identified programmatically
-  - a naming convention, a new C_TradeSkill-style flag, or something that
-    has to be hardcoded per profession after manual discovery.
-- **The biggest open risk**: whether silent, fully automated one-click
-  crafting is actually achievable at all on this client, or whether
-  crafting always surfaces the tradeskill UI, requires a station, or has
-  a cast time regardless of how it's invoked. If it isn't achievable,
-  this is a design decision to revisit (e.g. falling back to opening the
-  crafting UI to the right recipe and leaving the final click to the
-  player), not an assumption to make now.
-- Whether "use at a campfire" needs its own proximity check on our end, or
-  whether the item's own use-validation already requires it (more likely,
-  but unconfirmed).
-- The actual mechanism for reading recipe reagents and checking bag
-  counts against them, to build the dynamic missing-materials list.
-- The exact wording of the yell request message.
+- The client's crafting-related addon API surface is retail-shaped (the
+  modern `C_`-namespaced functions), not classic, even though the
+  underlying crafting system itself has no stations or stats/specialization
+  layer. Legacy bare globals (`GetSpellInfo`, `IsSpellKnown`, `GetItemCount`,
+  `UseItemByName`, `CastSpellByID` for crafting, `GetNumSkillLines`) are all
+  absent/erroring; use `C_Spell`, `C_Item`, `C_TradeSkillUI` instead.
+- Profession detection: the bare globals `GetProfessions()`/
+  `GetProfessionInfo()` work as retail's do. First Aid is not tracked
+  through them (matches modern retail, which also dropped it from
+  `GetProfessions()`).
+- "Is this good craftable by this character" is `craftable` on
+  `C_TradeSkillUI.GetRecipeInfo(recipeSpellID)` - the craft spell ID
+  doubles as the recipe ID directly. (Not `learned`, which reads `false`
+  even on a character with the profession well past skill 20 - it tracks
+  something else, unused here.)
+- "Does this character have the reagents on hand right now" is
+  `C_TradeSkillUI.GetCraftableCount(recipeSpellID)` - confirmed to do real
+  reagent-ratio math (returned 14 against 14 of one reagent and 17 of
+  another, i.e. the scarcer at a 1:1 ratio). This is the yes/no gate for
+  the craft-vs-yell fork; no manual reagent-count comparison needed for
+  that part.
+- Reagent item IDs (for building the dynamic missing-materials list) are
+  reachable via
+  `C_TradeSkillUI.GetRecipeSchematic(recipeSpellID, false).reagentSlotSchematics[n].reagents[1].itemID`.
+- `C_TradeSkillUI.CraftRecipe(recipeSpellID)` is callable from ordinary
+  (non-secure) addon code and was confirmed, live, to actually craft the
+  item (bag count 0 -> 1, reagents consumed) with no further UI
+  interaction. Crafting is **not** the hard part.
+- **Corrected risk, was previously mislabeled as crafting**: using/placing
+  the crafted good is the step that's actually hard. `C_Item.UseItemByName`
+  cannot be called from ordinary insecure Lua at all (confirmed: it throws
+  citing `SecureActionButtonTemplate`), including from inside a plain
+  `Button`'s `OnClick`. It requires a `SecureActionButtonTemplate`-based
+  button with secure attributes set ahead of time
+  (`SetAttribute("type", "item")`, `SetAttribute("item", <name or
+  itemLink>)`) - the same mechanism action bars use - with the client's own
+  protected code performing the use when the button is physically clicked.
+  This is still a one-click action from the player's perspective; it just
+  means the "use" button in the panel can't be a plain `Button` +
+  `OnClick` calling our Lua like the rest of this add-on's UI. Whenever
+  which item is current changes, the fix is to update that button's
+  secure attributes, not to call a function.
+
+- Proximity: the crafted good's own use-validation enforces being at a
+  campfire itself, but the panel should not rely on that alone - it
+  should gate each profession button's visibility/enabled state on the
+  same signal already driving the rest of this panel
+  (`CS.Detection`'s at-fire boolean, spell ID `1229739`, the "Welcoming
+  Campfire" aura - see [Campfire Detection](#campfire-detection-and-secret-value-safety)).
+  No new aura or API needed; this is a reuse of existing infrastructure,
+  not a new discovery.
+
+**Confirmed (2026-10-02, via the player's own domain knowledge - not yet
+in-client-tested): each profession has (at least) three reward tiers,
+functionally different, not "the same good, upgraded":**
+
+- **Tier 1** (skill 20, the set this capture originally tested): a
+  placeable object that augments the sit-at-campfire buff for *anyone*
+  who benefits from that fire, not just the player who placed it -
+  matching this doc's original "for everyone who benefits from that
+  fire" framing above. Engineering's tier-1 object is the one exception
+  that isn't a passive buff-augmenter - it's interactable and spawns a
+  vendor instead - but this needs no special handling from the add-on:
+  the add-on's job ends at use/craft/request, same as any other tier-1
+  good, and it's unconcerned with whatever happens after placement.
+- **Tier 2 and tier 3** are strictly additive over tier 1: a placed tier
+  2/3 object also counts as its tier-1 self for the shared buff, plus
+  niche extra effects, at a higher crafting cost. Tier 2's real
+  spell/item IDs were confirmed for 7 professions during this research
+  pass (Cookie's Feast/Cooking, Fermenter/Alchemy, Anvil/Blacksmithing,
+  Tanning Rack/Leatherworking, Spinning Wheel/Tailoring, Repair
+  Bot/Engineering, Arcane Salvager/Enchanting - kept in
+  `docs/research.txt` for reference), and tier 3 isn't datamined yet.
+- **Scope decision**: given tiers 2/3 are strictly additive and more
+  expensive to craft for only niche benefit, this add-on supports tier 1
+  only. Tiers 2/3 are not part of this feature's scope - "one button per
+  profession" stands as originally written, one tier-1 good per
+  profession, not one per profession-tier.
+
+**Confirmed (2026-10-02)**: the yell request message follows the
+structure "I can place a/an &lt;item link&gt; at the campfire if someone
+wants to provide &lt;list of missing materials&gt;," with the item link
+and the missing-materials list both generated dynamically (the latter
+from the reagent/bag-count comparison already resolved above).
+
+**Profession coverage, complete**: Jewelcrafting and Inscription were
+added in The Burning Crusade and Wrath of the Lich King respectively, so
+neither exists in Forever - the 11 professions with confirmed tier-1
+data (Fishing, Alchemy, Herbalism, Cooking, First Aid, Enchanting,
+Leatherworking, Engineering, Blacksmithing, Tailoring, Mining, plus
+Skinning/Camp Chair, confirmed) are the complete set, not a partial list
+awaiting two more. See `docs/research.txt` for the full table.
+
+No open questions remain from this research pass - the feature is fully
+specified down to real item/spell IDs, the API calls needed for each
+step, the secure-button requirement for item use, the proximity design,
+and the yell message wording. What's left is implementation (see
+tasks.md's checklist), not further discovery.
 
 ## Milestones
 

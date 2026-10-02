@@ -551,3 +551,196 @@ S1-S4 (the four supporting skills, whose substance was folded into
 AGENTS.md/the test harness/CI rather than built as the standalone
 artifacts tasks.md describes - a real, acknowledged gap, not an
 oversight). The build is complete, released, and publicly downloadable.
+
+## 2026-10-02 — Future-scope research: profession campfire enhancements
+
+Captured the profession-based campfire-enhancement feature (one
+craftable good per profession, used at a campfire to add combat buffs
+to the existing hour-long sit buff) as documentation only - see
+`definition.md`'s "Future Scope (v2)" section and `tasks.md`'s matching
+milestone - with fully silent, one-click auto-craft as the intended
+automation level. Before any implementation, ran a round-by-round
+in-client research pass against a five-profession test subset (Fishing/
+Fish Bowl, Alchemy/Mana Well, Herbalism/Incense Candle, Cooking/Basic
+Campfire Kit, First Aid/First Aid Kit) to nail down the real API surface
+rather than guessing at implementation time. The full command-by-command
+log, including every wrong guess, lives in `docs/research.txt` and is
+kept as a working reference, not deleted once "done."
+
+**Tooling note**: chat `print()` output in WoW isn't copyable and long
+dumps truncate, which makes it useless for pulling real data back out of
+the client. Added a temporary `CampfireStokers_Debug(text)` global
+(Launcher.lua, with a matching temporary `.luacheckrc` entry) that
+routes arbitrary text through the already-existing `CS.UI.ShowTextPopup`
+- the same scrollable, selectable popup the selftest command uses -
+instead. Both are explicitly marked temporary and scoped to this
+research; removing them is a follow-up once the research concludes.
+
+**First wrong guess, corrected**: initial test commands assumed classic
+bare globals (`GetSpellInfo`, `IsSpellKnown`, `GetItemCount`,
+`UseItemByName`, `CastSpellByID` for crafting, `GetNumSkillLines`/
+`GetSkillLineInfo`). All threw or no-opped. Confirmed instead: this
+build's underlying crafting system (no stations, no stats/
+specialization layer) is classic-shaped, but its **addon API surface**
+is retail-shaped - the modern `C_`-namespaced functions (`C_Spell`,
+`C_Item`, `C_TradeSkillUI`) are what's actually present. Lesson for any
+future API exploration on this client: don't reach for classic-era
+globals by default just because the underlying game system looks
+classic; check the namespaced API first.
+
+**Confirmed facts** (see `definition.md` for the consumer-facing
+summary; this is the "how we know" version):
+
+- `GetProfessions()`/`GetProfessionInfo()` (bare globals, not
+  namespaced) work exactly as retail's do. First Aid isn't tracked
+  through them, matching modern retail.
+- `C_TradeSkillUI.GetRecipeInfo(recipeSpellID)` - the craft spell ID
+  doubles as the recipe ID directly, no separate lookup needed - returns
+  `craftable` (true/false: can this character craft this at all) and
+  `learned` (which reads `false` even on a character with the profession
+  well past skill 20; tracks something else, not used here). `craftable`
+  is the correct signal for "does this button exist," confirmed by
+  testing against a real `GetRecipeInfo` dump rather than assuming a
+  field name.
+- `C_TradeSkillUI.GetCraftableCount(recipeSpellID)` does real
+  reagent-ratio math: returned 14 against a character holding 14 of one
+  reagent and 17 of another (the scarcer of the two, at the recipe's 1:1
+  ratio). This is the craft-vs-yell yes/no gate - no manual reagent-count
+  comparison needed for that part.
+- Reagent item IDs, for building the dynamic missing-materials list, are
+  reachable via `GetRecipeSchematic(recipeSpellID,
+  false).reagentSlotSchematics[n].reagents[1].itemID` - found by walking
+  the schematic's shape one level at a time (dumping keys generically
+  rather than guessing field names), since the first attempt to request
+  the full schematic as a single `/run` command failed only because the
+  *typed command* exceeded the chat input's character limit, not because
+  of anything about the data itself.
+- `C_TradeSkillUI.CraftRecipe(recipeSpellID)` (signature confirmed via
+  warcraft.wiki.gg, matching the already-known
+  `C_TradeSkillUI.CraftRecipe` documentation) is callable from ordinary,
+  non-secure addon code - verified live, with real reagents on hand, by
+  checking bag count before (0) and after (1) the call. No tradeskill UI,
+  no cast-time interaction, no further click needed. **Crafting is not
+  the hard part of this feature.**
+- **The actual hard part, discovered by contrast**: `C_Item.UseItemByName`
+  (using/placing the crafted good) cannot be called from ordinary
+  insecure Lua at all, including from inside a plain `Button`'s
+  `OnClick` - confirmed live, it throws an error citing
+  `SecureActionButtonTemplate` directly. This requires building that
+  one button as a `SecureActionButtonTemplate` with secure attributes
+  set ahead of time (`SetAttribute("type", "item")`, `SetAttribute(
+  "item", <name or itemLink>)`), the same mechanism action bars use,
+  with the client's own protected code performing the use when the
+  button is physically clicked. Still one click from the player's
+  perspective; just not implementable as a plain Button + OnClick like
+  the rest of this add-on's UI. This flips `definition.md`'s original
+  risk framing, which called silent crafting "the biggest open risk" -
+  that part turned out to be straightforward, and using/placing the
+  result is the part that actually needs a different implementation
+  approach.
+
+**Proximity, resolved as a design decision rather than an in-client
+discovery**: the crafted good enforces being at a campfire through its
+own use-validation, but the panel shouldn't rely on that alone - the
+profession buttons should gate on the same signal already driving the
+rest of this panel, `CS.Detection`'s at-fire boolean (spell `1229739`).
+That spell's real in-game name is the "Welcoming Campfire" aura -
+previously only ever referred to generically as "the campfire aura"
+throughout this project's docs, confirmed here for the first time. No
+new aura or API needed for this; it's a reuse of existing
+infrastructure.
+
+**Tiers, corrected via the player's own domain knowledge (not an
+in-client test) - the Wowhead "multi-tier" hunch from the previous entry
+was right that tiers exist, but wrong about what they are.** Initial
+assumption was "the same good, upgraded" (e.g. Basic/Journeyman/Expert of
+one item). Actual structure, confirmed against 7 newly-looked-up Wowhead
+spell/item IDs (Cookie's Feast/Cooking, Fermenter/Alchemy, Anvil/
+Blacksmithing, Tanning Rack/Leatherworking, Spinning Wheel/Tailoring,
+Repair Bot/Engineering, Arcane Salvager/Enchanting - all "Create Item"
+spells with a 10-second cast and real reagent costs, same shape as the
+tier-1 recipes already confirmed):
+
+- Tier 1 (the five already tested) is a placeable object that augments
+  the sit-at-campfire buff for *anyone* benefiting from that fire, not
+  just the player who placed it - this matches `definition.md`'s
+  original capture, which already said "for everyone who benefits from
+  that fire"; that part was right from the start. Exception:
+  Engineering's tier-1 object isn't a passive buff-augmenter - it's
+  interactable and spawns a vendor.
+- Tier 2 is not a buff-booster at all - it's a placeable crafting-station
+  object that satisfies a proximity requirement for new Forever-specific
+  crafting recipes, the same way classic recipes require a real anvil or
+  forge nearby.
+- Tier 3 is in scope but not yet discovered/datamined by anyone.
+
+Design implication: the use/craft/request click flow is likely
+tier-agnostic (place if owned, craft if not, yell if materials are
+missing) regardless of what the placed object does afterward - that part
+doesn't need per-tier branching. What does change is the framing: "one
+button per profession" becomes "one button per profession-tier good the
+character can plausibly use," not a strict 1:1 mapping.
+
+**Scope narrowed back down, same day**: the player clarified two things
+that simplify the above considerably. First, Engineering's tier-1
+vendor-spawning exception needs no special handling at all - this
+add-on's job ends at use/craft/request, and it's unconcerned with
+whatever the placed object does afterward, vendor or otherwise. Second,
+and more significant: tiers 2 and 3 are strictly additive over tier 1 (a
+placed tier 2/3 object also counts as its tier-1 self for the shared
+buff, plus niche extra effects), and cost more to craft for only that
+niche benefit. Given that, the add-on will support **tier 1 only** -
+tiers 2/3 are out of scope, not a future expansion to design around.
+This reverts the "one button per profession-tier good" framing from
+earlier in this same entry back to the original "one button per
+profession" - the tier-2 spell/item IDs gathered this session stay in
+`docs/research.txt` as reference, not as something to implement against.
+
+**Yell message wording, confirmed**: "I can place a/an &lt;item link&gt;
+at the campfire if someone wants to provide &lt;list of missing
+materials&gt;," with the item link and the missing-materials list both
+generated dynamically from the reagent/bag-count logic already resolved
+above.
+
+**Remaining tier-1 professions, mostly filled in via Wowhead** (item
+attributed to profession by its crafting reagents, not guessed from the
+item's name - learned to do this the hard way after the tier-2 naming
+surprise earlier in this same research line): Enchanted Lute (Strange
+Dust, a classic enchanting-only material) → Enchanting; Camp Tent (Light
+Leather, Ruined Leather Scraps) → Leatherworking; Reagent Bot (copper
+bolts/bar/ore/tube, weak flux) → Engineering - this is confirmed to be
+the "spawns a vendor" exception noted earlier, and a robotic reagent
+vendor fits that exactly; Sharpening Wheel (Rough Stone, Copper Bar) →
+Blacksmithing; Faction Banner, two faction-specific item IDs (Linen
+Cloth, Coarse Thread) → Tailoring; Lodestone (Rough Stone, Copper Bar) →
+Mining, a profession not previously in this feature's scope at all. See
+`docs/research.txt` for the full table.
+
+One item resisted clean attribution: Camp Chair's reagents (Light
+Leather, Ruined Leather Scraps, Simple Wood) overlap Camp Tent's leather
+reagents while adding wood, so it doesn't isolate to one profession the
+way every other item did. Best guess is Skinning (a secondary gathering
+profession not otherwise covered, and "camp furniture from hides" fits
+its flavor), but this is marked uncertain rather than asserted as fact.
+
+**Both remaining open items closed, same day**: Camp Chair is confirmed
+Skinning's tier-1 good directly (not just the reagent-based guess).
+Inscription and Jewelcrafting were never actually missing data - they
+don't exist in Forever at all, having been added in The Burning Crusade
+and Wrath of the Lich King respectively. The 11 professions with
+confirmed tier-1 data are the complete set.
+
+**This closes the research line.** Every open question raised across
+this whole pass - the API surface, the craftable/craftable-count/
+schematic calls, the secure-button requirement for item use, the
+proximity design, the yell message wording, and full profession coverage
+- is now resolved. `definition.md`'s Future Scope section and
+`docs/tasks.md`'s matching milestone are both fully specified; what
+remains is implementation, not further discovery. Removed the temporary
+debug hook (`CampfireStokers_Debug` in Launcher.lua, plus its
+`.luacheckrc` entry) the same day, per its own code comment - nothing
+left in this research line needs it. Verified clean afterward: syntax
+check, all 81 tests, and (newly) a real local `luacheck .` run, 0
+warnings/errors - this closes the "no working local luacheck" gap T10's
+entries noted earlier; CI is no longer the only place this check runs
+for real.

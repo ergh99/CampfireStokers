@@ -1,83 +1,278 @@
--- ============================================================
--- SECTION 1: Profession detection shape (retail GetProfessions()
--- vs classic flat skill-line list)
--- ============================================================
+Profession campfire-enhancement feature - in-client API research log.
+Commands are single-line /run, paste individually. Requires
+CampfireStokers_Debug (temporary, see Launcher.lua) to be loaded -
+/reload after pulling the commit that adds it.
 
--- 1a. Retail-shape profession indices
-/run local p1,p2,arch,fish,cook,firstAid = GetProfessions(); print("primary1="..tostring(p1), "primary2="..tostring(p2), "arch="..tostring(arch), "fish="..tostring(fish), "cook="..tostring(cook), "firstAid="..tostring(firstAid))
+CONFIRMED DATA, TIER 1 - passive sit-buff augmenters, placed near the
+fire, benefit anyone at that fire (not just the placer). This is the
+ONLY tier this add-on supports (see OUT OF SCOPE note below).
+  (profession, item, item ID, craft spell, spell ID):
+  Fishing         Fish Bowl         279967  Fish Bowl         1229745
+  Alchemy         Mana Well         279956  Mana Well         1230564
+  Herbalism       Incense Candle    279962  Incense Candle    1229705
+  Cooking         Basic Campfire Kit 279981 Basic Campfire    1229737
+  First Aid       First Aid Kit     279968  (First Aid Kit)   1230117
+  Enchanting      Enchanted Lute    279976  Enchanted Lute    1230643
+  Leatherworking  Camp Tent         279978  Camp Tent         1229432
+  Engineering     Reagent Bot       279950  Reagent Bot       1230656
+                  (interactable - spawns a vendor; needs no special
+                  handling, see decision-log.md 2026-10-02)
+  Blacksmithing   Sharpening Wheel  279944  Sharpening Wheel  1230171
+  Tailoring       Faction Banner    279973  Faction Banner    1263425
+                  (Alliance variant; Horde variant below)
+  Tailoring       Faction Banner    279972  Faction Banner    1229504
+                  (Horde variant)
+  Mining          Lodestone         279960  Lodestone         1230161
 
--- 1b. If 1a returned any non-nil indices, feed each one in here (replace N) to confirm GetProfessionInfo's shape
-/run local name,icon,skillLevel,maxSkillLevel,numAbilities,spelloffset,skillLine,skillModifier = GetProfessionInfo(N); print(name, skillLevel, maxSkillLevel, skillLine)
+  Skinning        Camp Chair        279979  Camp Chair        1229517
+                  (confirmed 2026-10-02, not just inferred from reagents)
 
--- 1c. Old classic-shape flat skill list, for comparison regardless of what 1a returns
-/run for i=1,GetNumSkillLines() do local name,isHeader,_,rank,_,_,maxRank = GetSkillLineInfo(i); print(i, name, isHeader, rank, maxRank) end
+  Jewelcrafting and Inscription do NOT exist in Forever (added in TBC and
+  Wrath respectively) - the 11 professions above are the complete set,
+  not a partial list. Profession coverage is done.
 
--- ============================================================
--- SECTION 2: Do we already know the five craft recipes as spells?
--- ============================================================
+OUT OF SCOPE (reference only, not for implementation - see
+definition.md/decision-log.md 2026-10-02): tier 2 and tier 3 are
+strictly additive over tier 1 (a placed tier 2/3 object also counts as
+its tier-1 self for the shared buff, plus niche extras) and cost more to
+craft for that niche benefit alone. This add-on supports tier 1 only.
+Kept below for reference in case this decision is ever revisited.
 
-/run print("Fish Bowl:", IsSpellKnown(1229745), GetSpellInfo(1229745))
-/run print("Mana Well:", IsSpellKnown(1230564), GetSpellInfo(1230564))
-/run print("Incense Candle:", IsSpellKnown(1229705), GetSpellInfo(1229705))
-/run print("Basic Campfire:", IsSpellKnown(1229737), GetSpellInfo(1229737))
-/run print("First Aid Kit (candidate, maybe use-effect not craft):", IsSpellKnown(1307244), GetSpellInfo(1307244))
+TIER 2 - NOT buff augmenters. Placeable crafting-station objects that
+satisfy a proximity requirement for new Forever-specific crafting
+recipes (same idea as classic's anvil/forge proximity requirement).
+Found via Wowhead, not yet in-client tested. Skill threshold for
+unlocking tier 2 not yet confirmed.
+  (profession, item, item ID, craft spell, spell ID):
+  Cooking         Cookie's Feast     279957  Cookie's Feast     1262978
+  Alchemy         Fermenter          279970  Fermenter          1263005
+  Blacksmithing   Anvil              279988  Anvil              1263041
+  Leatherworking  Tanning Rack       279941  Tanning Rack       1263031
+  Tailoring       Spinning Wheel     279943  Spinning Wheel     1263032
+  Engineering     Repair Bot         279949  Repair Bot         1263034
+  Enchanting      Arcane Salvager    279985  Arcane Salvager    1263056
 
--- ============================================================
--- SECTION 3: Reagent/item counts by name (no item IDs needed -
--- GetItemCount accepts a name string directly)
--- ============================================================
+TIER 3 - in scope, not yet discovered/datamined by anyone.
 
-/run print("Raw Brilliant Smallfish:", GetItemCount("Raw Brilliant Smallfish"), " Empty Vial:", GetItemCount("Empty Vial"))
-/run print("Peacebloom:", GetItemCount("Peacebloom"), " Silverleaf:", GetItemCount("Silverleaf"))
-/run print("Simple Wood:", GetItemCount("Simple Wood"), " Flint and Tinder:", GetItemCount("Flint and Tinder"))
-/run print("Fish Bowl in bags:", GetItemCount(279967), " Mana Well in bags:", GetItemCount(279956), " Incense Candle in bags:", GetItemCount(279962), " Campfire Kit in bags:", GetItemCount(279981), " First Aid Kit in bags:", GetItemCount(279968))
+== ROUND 1 RESULTS (completed) ==
 
--- ============================================================
--- SECTION 4: Does a retail-shaped C_TradeSkillUI namespace exist,
--- and if so what does it actually expose? (dumps every function
--- name it finds - this is the single most useful command here)
--- ============================================================
+1a. GetProfessions(): worked. firstAid was nil; primary1/primary2/
+    archaeology/fishing/cooking all returned integer skill-line indices.
+    -> Retail-shape profession API confirmed present; First Aid is NOT
+       tracked via GetProfessions (matches modern retail, which dropped
+       First Aid as a GetProfessions() profession).
+1b. GetProfessionInfo(N): worked, correct skill values, skillLine=171
+    for (at least) one profession tested.
+1c. GetNumSkillLines()/GetSkillLineInfo(): THREW AN ERROR.
+    -> Confirms the old classic flat skill-line list is gone on this
+       build; profession/skill data is retail-shaped only.
+2.  GetSpellInfo/IsSpellKnown: THREW ERRORS (legacy globals removed -
+    matches definition.md's own note that GetSpellInfo is absent).
+3.  GetItemCount: THREW ERRORS (legacy global removed).
+4a. C_TradeSkillUI exists, 146 functions.
+4b. C_TradeSkillUI.GetRecipeInfo(1229745) returned real data (a long
+    key/value table) - recipeID 1229745 (== the craft spell ID) is a
+    valid recipeID. Need the actual dump (see Round 2, item A) since
+    chat print isn't copyable.
+4c. GetRecipeSchematic command: too long for chat input, never ran.
+5.  Declined - redundant once C_TradeSkillUI confirmed working and we
+    already have First Aid Kit's real spell ID (1230117) directly.
+6.  CastSpellByID(1229745): no result, no error - confirms CastSpellByID
+    is NOT how crafting is triggered in this retail-shaped system.
+7.  UseItemByName(279967): "attempt to call a nil value" - legacy
+    global removed, same as GetSpellInfo/GetItemCount.
 
-/run if C_TradeSkillUI then local n=0; for k in pairs(C_TradeSkillUI) do print("C_TradeSkillUI."..k); n=n+1 end; print(n.." total") else print("C_TradeSkillUI does not exist") end
+Lesson learned the hard way: do not reach for classic-era/legacy bare
+globals (GetSpellInfo, IsSpellKnown, GetItemCount, UseItemByName,
+CastSpellByID for crafting). This build is retail-shaped minus the
+stats/specialization layer - use C_Spell / C_Item / C_TradeSkillUI
+namespaces, and when a namespace's exact function name isn't already
+confirmed, discover it by dumping real key names rather than guessing.
 
--- 4b. If 4 found GetRecipeInfo, try it against a known recipe spell ID (recipeID often == spellID in this data model)
-/run if C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then local info = C_TradeSkillUI.GetRecipeInfo(1229745); if info then for k,v in pairs(info) do print(k, tostring(v)) end else print("GetRecipeInfo(1229745) returned nil") end end
+Also confirmed via warcraft.wiki.gg: C_TradeSkillUI.CraftRecipe's real
+signature is:
+  C_TradeSkillUI.CraftRecipe(recipeSpellID, numCasts, craftingReagents,
+    itemTarget, applyConcentration)
+all but recipeSpellID optional. For our fixed-reagent recipes (no
+reagent choices, no concentration system on this build), a bare
+CraftRecipe(recipeSpellID) call should be enough to test.
 
--- 4c. If 4 found GetRecipeSchematic (the modern reagent/output API), try it too
-/run if C_TradeSkillUI and C_TradeSkillUI.GetRecipeSchematic then local s = C_TradeSkillUI.GetRecipeSchematic(1229745, false); if s then print("got schematic, reagentSlotCount="..tostring(s.reagentSlotCount)) else print("GetRecipeSchematic(1229745) returned nil") end end
+== ROUND 2 RESULTS (completed) ==
 
--- 4d. Old classic-shape equivalent, for comparison
-/run print("GetTradeSkillInfo exists:", GetTradeSkillInfo ~= nil, " GetTradeSkillReagentInfo exists:", GetTradeSkillReagentInfo ~= nil, " DoTradeSkill exists:", DoTradeSkill ~= nil)
+A. GetRecipeInfo(1229745) full dump. Key findings:
+     craftable = true          <- THIS is the "can I make it" signal
+     learned = false           <- NOT the right signal (see below)
+     canCreateMultiple = true
+     hyperlink = [Fish Bowl]
+     skillLineAbilityID = 52639
+     recipeID = 1229745
+   RESOLVED (open question b, "is recipe known" check): use the
+   `craftable` field from GetRecipeInfo, not `learned`. `learned` is
+   false here despite the character having Fishing at 20+, so it tracks
+   something else (maybe a "formally learned via scroll" flag that
+   doesn't apply to skill-gated recipes). `craftable` is true and is
+   what should gate each button's visibility/enabled state.
+B. Full C_TradeSkillUI function list (146) confirmed, most relevantly:
+     CraftRecipe              - matches wiki signature, confirmed real
+     GetCraftableCount         - may directly answer "how many can I
+                                 make right now" without us manually
+                                 cross-checking reagent counts
+     GetRecipeSchematic        - has the real reagent slot data (4c
+                                 failed only because the COMMAND was
+                                 too long to type, not because the
+                                 output was too long - now moot with
+                                 the debug popup, see I below)
+     IsRecipeProfessionLearned, IsRecipeInSkillLine, GetRecipeRequirements,
+     GetReagentSlotStatus, GetProfessionInfoByRecipeID - unused for now,
+     `craftable` already answers what we need.
+C. C_Spell.GetSpellInfo confirmed working for all 5 recipe spell IDs -
+   names matched expectations exactly (Fish Bowl, Mana Well, Incense
+   Candle, Basic Campfire, First Aid Kit).
+D/E. Both ORIGINAL versions were too long for the chat input (not the
+   output - the typed command itself). Shortened versions below.
+F. C_Item's "Use"-matching functions: ConfirmOnUse, ConfirmNoRefundOnUse,
+   UseItemByName, ConfirmBindOnUse.
+   RESOLVED (open question c, how to use/place the item): it's
+   C_Item.UseItemByName (namespaced), NOT the bare global. Signature
+   not yet confirmed (does it take a name string or an itemID? does it
+   need a target/ground-target reticle confirmed separately?) - see H
+   below. FLAG: the design doc describes this as a multi-second
+   ground-targeted cast. If UseItemByName just starts that cast, a
+   ground-targeting reticle may still need a confirm click to actually
+   place it - that would NOT be "fully silent one-click" as scoped.
+   Needs an in-game check, not just a no-error pcall.
 
--- ============================================================
--- SECTION 5: Resolve the First Aid Kit mystery - enumerate the
--- First Aid tab of your spellbook directly to find the real
--- craft-recipe spell (works whether or not professions use the
--- classic skill-line list or the retail GetProfessions() shape)
--- ============================================================
+== ROUND 3 COMMANDS (not yet run) ==
 
--- 5a. List every spellbook tab (profession tabs show up here on both classic and pre-C_SpellBook retail)
-/run for i=1,GetNumSpellTabs() do local name,_,offset,numSpells = GetSpellTabInfo(i); print(i, name, "offset="..offset, "numSpells="..numSpells) end
+-- D (shortened - item counts for all 5 crafted goods, numeric IDs only)
+/run local a={279967,279956,279962,279981,279968} local t={} for i=1,5 do t[i]=a[i].."="..C_Item.GetItemCount(a[i]) end CampfireStokers_Debug(table.concat(t,"\n"))
 
--- 5b. If 5a shows a "First Aid" tab, plug its offset/numSpells in here to list every spell in it
-/run local offset, numSpells = OFFSET, NUMSPELLS; for i=offset+1, offset+numSpells do local name = GetSpellBookItemName(i, "spell"); if name then print(i, name) end end
+-- E is superseded - don't guess reagent item IDs by name. I below pulls
+-- real reagent item IDs straight from the recipe schematic instead.
 
--- 5c. Modern-retail equivalent, in case the old spellbook API above returns nothing
-/run if C_SpellBook then print("C_SpellBook exists"); if C_SpellBook.GetNumSpellBookSkillLines then print("numSkillLines="..C_SpellBook.GetNumSpellBookSkillLines()) end else print("no C_SpellBook") end
+-- I. GetCraftableCount for all 5 recipes - may fully answer "can craft right now" on its own
+/run local a={1229745,1230564,1229705,1229737,1230117} local t={} for i=1,5 do t[i]=a[i].."="..tostring(C_TradeSkillUI.GetCraftableCount(a[i])) end CampfireStokers_Debug(table.concat(t,"\n"))
 
--- ============================================================
--- SECTION 6 (CONSUMES REAGENTS): attempt a fully silent craft via
--- CastSpellByID, bypassing any tradeskill UI entirely. Watch for:
--- does a frame pop open anyway? does it error? does the item
--- actually appear in bags 10s later (after the cast time)?
--- ============================================================
+-- K. Shallow top-level dump of GetRecipeSchematic(1229745) - find which
+-- key holds reagent slot data before drilling into it (avoids guessing
+-- nested field names a 4th time)
+/run local s=C_TradeSkillUI.GetRecipeSchematic(1229745,false) local t={} for k,v in pairs(s) do table.insert(t, k.."="..tostring(v)) end CampfireStokers_Debug(table.concat(t,"\n"))
 
-/run CastSpellByID(1229745) -- Fish Bowl: consumes 1 Raw Brilliant Smallfish + 1 Empty Vial, 10s cast
+-- H. Does C_Item.UseItemByName throw on a plain call? (does NOT confirm
+-- silent placement - just confirms the call itself is valid)
+/run local ok,err = pcall(C_Item.UseItemByName, 279967) CampfireStokers_Debug("ok="..tostring(ok).." err="..tostring(err))
 
--- ============================================================
--- SECTION 7 (CONSUMES THE ITEM): attempt to use/place the result.
--- Expect this to enter ground-targeting mode per your description -
--- report exactly what happens (reticle? instant? error?).
--- ============================================================
+-- ===== CONSUMES REAGENTS past this point =====
 
-/run UseItemByName(279967) -- Fish Bowl
+-- G. Attempt the real craft call (confirmed signature from warcraft.wiki.gg)
+/run local ok,err = pcall(C_TradeSkillUI.CraftRecipe, 1229745) CampfireStokers_Debug("ok="..tostring(ok).." result/err="..tostring(err))
+
+== ROUND 3 RESULTS (completed) ==
+
+D. Item counts: 279967=0, 279956=0, 279962=0, 279981=2, 279968=0.
+   Only the Basic Campfire Kit (279981) is actually owned right now (2).
+I. GetCraftableCount: 0 for all 5 recipes, including Fish Bowl - even
+   though GetRecipeInfo said craftable=true for it.
+   RESOLVED (open question, missing-materials detection): `craftable`
+   and GetCraftableCount are two DIFFERENT signals, both needed:
+     craftable (GetRecipeInfo)  = recipe is unlocked at all
+                                   -> gates whether the button EXISTS
+     GetCraftableCount(id) == 0 = no reagents on hand right now
+                                   -> this IS the "missing materials,
+                                      fall back to the yell" trigger
+                                      the design doc calls for. We may
+                                      not need to hand-roll reagent-
+                                      count comparisons at all for the
+                                      yes/no check - only for WHICH
+                                      reagents are missing (the dynamic
+                                      part of the yell message), which
+                                      still needs the schematic.
+K. Confirmed `reagentSlotSchematics` is the field holding reagent slot
+   data (a table, not yet drilled into).
+H. ok=true, err=nil - but INCONCLUSIVE, not confirmed. The player owns
+   ZERO Fish Bowls (D confirmed 279967=0), so there was nothing to
+   actually use - a no-error result against an unowned item proves
+   nothing about whether placement actually works. Re-test needed
+   against an item actually owned (Basic Campfire Kit, 279981, qty 2).
+
+== ROUND 4 COMMANDS (not yet run) ==
+
+-- L. Drill into the first reagent slot's own fields (field names unknown - dump generically rather than guess a 4th time)
+/run local s=C_TradeSkillUI.GetRecipeSchematic(1229745,false) local r=s.reagentSlotSchematics[1] local t={} for k,v in pairs(r) do table.insert(t,k.."="..tostring(v)) end CampfireStokers_Debug(table.concat(t,"\n"))
+
+-- H2. Re-test UseItemByName against an item actually owned (Basic Campfire Kit x2). IMPORTANT: watch what happens in-game when you run this, not just the popup - does it place silently, or does a ground-target reticle appear needing a second click? pcall can't see that part.
+/run local ok,err=pcall(C_Item.UseItemByName,279981) CampfireStokers_Debug("ok="..tostring(ok).." err="..tostring(err))
+
+-- G. Still worth running now, unchanged - since GetCraftableCount already confirmed 0 reagents on hand, this is actually a safe, informative test of the "craft attempted with missing reagents" failure path specifically (nothing to consume, nothing lost either way).
+/run local ok,err = pcall(C_TradeSkillUI.CraftRecipe, 1229745) CampfireStokers_Debug("ok="..tostring(ok).." result/err="..tostring(err))
+
+== ROUND 4 RESULTS (completed) ==
+
+I (re-run with 14 Raw Brilliant Smallfish + 17 Empty Vial on hand):
+   1229745=14, others still 0 (no reagents for those).
+   CONFIRMED: GetCraftableCount does real reagent-ratio math (14, the
+   scarcer of the two reagents at a 1:1 ratio) - this is a solid,
+   reliable "can craft N right now" signal, no manual reagent-counting
+   needed for the yes/no gate.
+L. Reagent slot 1 of Fish Bowl: required=true, quantityRequired=1,
+   slotIndex=1, reagentType=1, and critically `reagents` is ITSELF a
+   table (a list of acceptable reagent options for the slot, not a
+   single itemID directly on this record) - needs one more level of
+   drilling (see M below).
+H2. ok=true/err=nil under pcall, but a real error appeared when run
+    without pcall - pcall was masking it. Lesson: pcall hides WoW's
+    normal on-screen error/UI-feedback text same as it would a real
+    script error, which defeats the point when what we actually need
+    to observe is what happens on screen. Dropping pcall for this one
+    (see H3 below) rather than re-guessing why.
+G. ok=true, result/err=nil - the call itself didn't throw, but nil
+   doesn't confirm a completed craft (CraftRecipe may well be
+   fire-and-forget / async, completing via animation+event rather than
+   a synchronous return value). Needs a follow-up item-count check to
+   confirm the Fish Bowl was actually produced and the reagents
+   actually consumed (see N below).
+
+== ROUND 5 COMMANDS (not yet run) ==
+
+-- M. Drill one more level into reagent slot 1's `reagents` list, to get the actual itemID(s) accepted in that slot
+/run local s=C_TradeSkillUI.GetRecipeSchematic(1229745,false) local r=s.reagentSlotSchematics[1].reagents[1] local t={} for k,v in pairs(r) do table.insert(t,k.."="..tostring(v)) end CampfireStokers_Debug(table.concat(t,"\n"))
+
+-- H3. Bare call, no pcall, per your note - watch the screen directly for whatever appears (error text, reticle, silent success)
+/run C_Item.UseItemByName(279981)
+
+-- N. Confirm whether G actually produced a Fish Bowl and consumed reagents (compare to D's 279967=0 and the 14 Smallfish/17 Vial counts above)
+/run local t={"FishBowl="..C_Item.GetItemCount(279967)} CampfireStokers_Debug(table.concat(t,"\n"))
+
+== ROUND 5 RESULTS (completed) ==
+
+M. Fish Bowl's slot-1 reagent itemID = 6291. Confirms real reagent
+   itemIDs are reachable by walking
+   GetRecipeSchematic(id).reagentSlotSchematics[n].reagents[1].itemID -
+   this is how the dynamic "missing: X, Y" yell message would be built.
+H3. MAJOR FINDING. C_Item.UseItemByName cannot be called from /run (or
+   from any ordinary insecure Lua, including a normal Button's OnClick)
+   at all - confirmed via the function itself, citing
+   warcraft.wiki.gg's SecureActionButtonTemplate page. It requires
+   secure code execution.
+   RESOLVED/CORRECTED (open question c, AND definition.md's framing of
+   "biggest open risk"): using/placing the crafted item is NOT a matter
+   of calling a function from our own OnClick handler - it needs a
+   SecureActionButtonTemplate-based button with secure attributes set
+   ahead of time (SetAttribute("type","item"), SetAttribute("item",
+   <name or itemLink>)), with Blizzard's own C code performing the
+   protected action when the button is physically clicked. This is the
+   same mechanism action bars use - still achievable as "one click" from
+   the player's perspective, but architecturally that one button can't
+   be a plain Button+OnClick calling our Lua like the rest of the UI;
+   it needs the secure-template treatment specifically for item use.
+   Whenever which item is "current" changes (e.g. profession/available
+   good changes), the fix is to update the button's secure attributes,
+   not to call a function.
+   NOTE: G's CraftRecipe call did NOT throw this same error - suggesting
+   crafting itself is NOT similarly protected, only the use/placement
+   step is. If N confirms G's craft actually completed, this means
+   definition.md's current "silent crafting is the biggest open risk"
+   framing has it backwards - crafting looks straightforward from
+   ordinary addon code; using/placing the result is the part that
+   needs the secure-template approach. Worth correcting definition.md
+   once N confirms.

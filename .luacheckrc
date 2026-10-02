@@ -32,10 +32,6 @@ globals = {
     "SlashCmdList.CAMPFIRESTOKERS",
     "StaticPopupDialogs.CAMPFIRESTOKERS_RESET_CONFIRM",
     "StaticPopupDialogs.CAMPFIRESTOKERS_DELETE_CATEGORY_CONFIRM",
-
-    -- TEMPORARY, see Launcher.lua's comment on CampfireStokers_Debug.
-    -- Remove this line along with that function once research concludes.
-    "CampfireStokers_Debug",
 }
 
 -- WoW API globals this addon reads, added one at a time as modules start

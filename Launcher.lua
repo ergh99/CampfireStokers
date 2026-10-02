@@ -7,17 +7,6 @@ function CampfireStokers_OnAddonCompartmentClick(_addonName, _buttonName, _menuB
     CS.UI.Toggle()
 end
 
--- TEMPORARY: in-client API research only, for the profession
--- campfire-enhancement feature capture (see docs/decision-log.md and
--- docs/tasks.md's "Future Scope"). Lets /run commands dump arbitrary
--- (and arbitrarily long) text into a copyable, scrollable window instead
--- of WoW's chat frame, which doesn't support copying and truncates long
--- output. Remove this once that research concludes - it is not part of
--- the shipped feature set and has no reason to exist in a release build.
-function CampfireStokers_Debug(text)
-    CS.UI.ShowTextPopup("Debug Dump", tostring(text))
-end
-
 -- T6's in-client verification checks. Each returns ("pass" | "fail" |
 -- "unknown", message). "pass"/"fail" are only used where the check can be
 -- run safely and automatically and has a documented assumption to compare

@@ -140,19 +140,71 @@ build.
 Depends on: T10 (uses the existing campfire panel and detection
 infrastructure; adds to them, doesn't replace them).
 
-- [ ] In-client discovery: confirm a profession-detection API exists and
-      works as expected, and determine how to identify "the campfire good
-      for profession X" programmatically (naming convention, a new API
-      surface, or manual per-profession discovery).
-- [ ] In-client discovery: confirm whether fully silent, one-click
-      crafting (no tradeskill UI, no station requirement, no cast time) is
-      actually achievable. This is the single biggest risk in the
-      feature as specified - if it isn't achievable as silent/one-click,
-      raise it for a design decision (e.g. opening the crafting UI to the
-      right recipe instead) before continuing.
-- [ ] In-client discovery: confirm how to read a recipe's reagent list and
-      check bag counts against it, to build a dynamic missing-materials
-      list.
+- [x] In-client discovery: confirmed 2026-10-02 against a five-profession
+      test subset (see docs/research.txt and definition.md's "Confirmed
+      via in-client research"). Profession detection is the bare
+      `GetProfessions()`/`GetProfessionInfo()` globals, retail-shaped. The
+      campfire good for profession X is identified by `craftable` on
+      `C_TradeSkillUI.GetRecipeInfo(recipeSpellID)` - the craft spell ID
+      doubles as the recipe ID directly, no separate lookup needed.
+- [x] In-client discovery: confirmed 2026-10-02. Silent, one-click crafting
+      IS achievable - `C_TradeSkillUI.CraftRecipe(recipeSpellID)` is
+      callable from ordinary (non-secure) addon code and was verified live
+      to actually craft the item (bag count 0 -> 1, reagents consumed, no
+      UI interaction). This risk was mislabeled: crafting turned out to be
+      the easy part. The real architectural risk, discovered in the same
+      session, is using/placing the crafted item - see the new item below.
+- [ ] In-client discovery: `C_Item.UseItemByName` (the "use/place the
+      item" step) cannot be called from ordinary insecure Lua at all -
+      confirmed 2026-10-02, it throws citing `SecureActionButtonTemplate`,
+      even from inside a plain `Button`'s `OnClick`. Build and verify a
+      `SecureActionButtonTemplate`-based button (`SetAttribute("type",
+      "item")`, `SetAttribute("item", <name or itemLink>)`) before the
+      panel's "use" button design locks in - this is the same mechanism
+      action bars use, and still one click from the player's perspective,
+      but it can't be a plain Button + OnClick like the rest of this
+      add-on's UI.
+- [x] In-client discovery: confirmed 2026-10-02. Reagent item IDs are
+      reachable via `GetRecipeSchematic(recipeSpellID,
+      false).reagentSlotSchematics[n].reagents[1].itemID`; the yes/no
+      "can craft right now" gate is `GetCraftableCount(recipeSpellID)`,
+      confirmed to do real reagent-ratio math - no manual bag-count
+      comparison needed for that part.
+- [x] Proximity: resolved 2026-10-02 as a design decision, not an
+      in-client discovery - the crafted good enforces being at a
+      campfire itself, but the panel should not rely on that alone. Gate
+      each profession button's visibility/enabled state on the same
+      `CS.Detection` at-fire boolean (spell `1229739`, the "Welcoming
+      Campfire" aura) already driving the rest of this panel - no new
+      aura or API needed.
+- [x] Confirmed 2026-10-02 (player domain knowledge): each profession has
+      (at least) three reward tiers, functionally different per tier, not
+      "the same good, upgraded" - tier 1 is a placeable sit-buff
+      augmenter (for anyone at that fire, not just the placer; Engineering
+      tier 1 is the one exception, an interactable vendor-spawner, which
+      needs no special handling here - the add-on's job ends at
+      use/craft/request regardless of what the object does after
+      placement); tier 2 is a placeable crafting-proximity station for
+      new Forever-only recipes (not a buff at all); tier 3 isn't
+      discovered/datamined yet. **Scope decision**: tiers 2/3 are
+      strictly additive over tier 1 (a placed tier 2/3 object also counts
+      as its tier-1 self, plus niche extras, at higher crafting cost) -
+      given that, and the added cost for only niche benefit, this add-on
+      supports **tier 1 only**. "One button per profession" stands as
+      originally written; tier 2/3 data is kept in docs/research.txt for
+      reference, not for implementation.
+- [x] Confirmed 2026-10-02 (Wowhead, reagents used to attribute each
+      item to its profession rather than guessing from the name - see
+      docs/research.txt for the full table): Enchanted Lute/Enchanting,
+      Camp Tent/Leatherworking, Reagent Bot/Engineering (this is the
+      "spawns a vendor" exception - a reagent-vendor bot, fits exactly),
+      Sharpening Wheel/Blacksmithing, Faction Banner (two faction-specific
+      item IDs)/Tailoring, Lodestone/Mining (a profession not previously
+      in scope at all), and Camp Chair/Skinning (confirmed directly, not
+      just inferred from reagents). **Profession coverage is complete**:
+      Jewelcrafting and Inscription don't exist in Forever (added in TBC
+      and Wrath respectively), so these 11 professions are the full set,
+      not a partial list - no further profession discovery needed.
 - [ ] Profession detection: identify which professions (primary and
       secondary) the player's current character knows, and at what skill
       level, via whatever API the discovery step above confirms.
@@ -162,9 +214,11 @@ infrastructure; adds to them, doesn't replace them).
 - [ ] Clicking a button, with no confirmation dialog at any step, matching
       this add-on's existing one-click philosophy: uses the item from bags
       if present; otherwise attempts a silent craft if materials are
-      present; otherwise yells a request for the missing materials, with
-      the specific missing items and quantities generated dynamically into
-      the message.
+      present; otherwise yells a request for the missing materials.
+      Confirmed 2026-10-02: message structure is "I can place a/an
+      &lt;item link&gt; at the campfire if someone wants to provide
+      &lt;list of missing materials&gt;," with the item link and the
+      missing-materials list both generated dynamically.
 - [ ] Unit tests for whatever pure logic this produces (e.g. a
       Classify-style function deciding use/craft/request from bag-count
       inputs), following this project's established pattern of separating
