@@ -125,3 +125,47 @@ Depends on: T9.
 - [x] A v* tag builds the zip through the packager, the zip folder is CampfireStokers, and the TOC Version is substituted. (v0.1.0, 2026-10-01: verified by downloading the actual release zip - correct folder name, correct load order, `## Version: v0.1.0` substituted for `@project-version@`, none of docs/tests/.github/AGENTS.md included.)
 - [x] Every T6 check passes, or the failures are recorded and accepted in the Decision Log. (All nine checks resolved - pass, or a recorded/accepted finding - per the T6 decision-log entries.)
 - [x] The first build is distributed for player feedback. (Public release at github.com/ergh99/CampfireStokers/releases/tag/v0.1.0 - live and downloadable. Actually gathering player feedback is an ongoing activity beyond this checklist item's scope.)
+
+## Future Scope: Profession Campfire Enhancements
+
+**Not scheduled, not started.** Captured 2026-10-02 for later design and
+implementation once real in-client data is available - see
+[definition.md](definition.md#future-scope-v2-profession-campfire-enhancements)
+for the full feature description and the list of open questions this
+milestone exists to resolve. Unlike T1-T10, this is not a committed next
+step; do not begin implementation work here without first confirming the
+open questions below in-client, the same way T6 did for the original
+build.
+
+Depends on: T10 (uses the existing campfire panel and detection
+infrastructure; adds to them, doesn't replace them).
+
+- [ ] In-client discovery: confirm a profession-detection API exists and
+      works as expected, and determine how to identify "the campfire good
+      for profession X" programmatically (naming convention, a new API
+      surface, or manual per-profession discovery).
+- [ ] In-client discovery: confirm whether fully silent, one-click
+      crafting (no tradeskill UI, no station requirement, no cast time) is
+      actually achievable. This is the single biggest risk in the
+      feature as specified - if it isn't achievable as silent/one-click,
+      raise it for a design decision (e.g. opening the crafting UI to the
+      right recipe instead) before continuing.
+- [ ] In-client discovery: confirm how to read a recipe's reagent list and
+      check bag counts against it, to build a dynamic missing-materials
+      list.
+- [ ] Profession detection: identify which professions (primary and
+      secondary) the player's current character knows, and at what skill
+      level, via whatever API the discovery step above confirms.
+- [ ] The campfire panel shows one button per profession-crafted good the
+      character could plausibly use (skill >= 20), determined dynamically,
+      not from a hardcoded list.
+- [ ] Clicking a button, with no confirmation dialog at any step, matching
+      this add-on's existing one-click philosophy: uses the item from bags
+      if present; otherwise attempts a silent craft if materials are
+      present; otherwise yells a request for the missing materials, with
+      the specific missing items and quantities generated dynamically into
+      the message.
+- [ ] Unit tests for whatever pure logic this produces (e.g. a
+      Classify-style function deciding use/craft/request from bag-count
+      inputs), following this project's established pattern of separating
+      pure decision logic from the real API calls around it.

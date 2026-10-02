@@ -114,6 +114,63 @@ CampfireStokersDB is declared account-wide in the TOC's SavedVariables line, so 
 
 Every category and phrase in DefaultTree carries a stable id. Migrations are additive: on load, if schemaVersion is older than the add-on's current version, a migration function walks DefaultTree and adds any default category or phrase whose id is missing from the saved tree, without touching existing player edits, then bumps schemaVersion. The ids of default nodes the player has deleted are recorded, and migrations never restore them.
 
+## Future Scope (v2): Profession Campfire Enhancements
+
+Not scheduled, not started, captured here for later design/implementation
+once real in-client data is available. See
+[tasks.md](tasks.md#future-scope-profession-campfire-enhancements) for the
+milestone shell.
+
+**Context**: WoW Forever adds a new class of crafted consumables, one per
+profession (both primary and secondary professions), unlocked at skill
+level 20. Using one of these at a campfire creates an object that enhances
+the campfire's existing sit-for-a-minute, hour-long buff with additional
+effects - specifically combat buffs - for everyone who benefits from that
+fire.
+
+**Feature**: the campfire panel gains one button per profession-crafted
+good the player's current character could plausibly use, determined
+dynamically from which professions the character actually knows and at
+what skill level - not a hardcoded list, since Forever's specific
+item/recipe data for this isn't available yet. Clicking a profession's
+button attempts, in order, with no confirmation dialog at any step
+(matching this add-on's existing one-click philosophy):
+
+1. **Use.** If the consumable is already in the player's bags, use/place
+   it immediately.
+2. **Craft.** If not, attempt to craft it - fully silently, with no
+   crafting-UI interaction - assuming the required materials are present.
+3. **Request.** If materials are also missing, yell a message offering to
+   craft and place the good in exchange for the missing materials, with
+   the specific missing items and quantities generated dynamically into
+   the message text.
+
+**Explicitly not resolved by this capture** - all of the following need
+real in-client investigation, the same way the campfire spell ID, the
+emote command globals, and the Settings canvas API did earlier in this
+project, before implementation can lock in its design:
+
+- The actual item names, spell/item IDs, and recipe reagent lists for each
+  profession's good. None of this exists in any data available to us yet.
+- Whether a profession-detection API exists and behaves as retail's
+  `GetProfessions()`/`GetProfessionInfo()` do, or differently.
+- How "the campfire good for profession X" is identified programmatically
+  - a naming convention, a new C_TradeSkill-style flag, or something that
+    has to be hardcoded per profession after manual discovery.
+- **The biggest open risk**: whether silent, fully automated one-click
+  crafting is actually achievable at all on this client, or whether
+  crafting always surfaces the tradeskill UI, requires a station, or has
+  a cast time regardless of how it's invoked. If it isn't achievable,
+  this is a design decision to revisit (e.g. falling back to opening the
+  crafting UI to the right recipe and leaving the final click to the
+  player), not an assumption to make now.
+- Whether "use at a campfire" needs its own proximity check on our end, or
+  whether the item's own use-validation already requires it (more likely,
+  but unconfirmed).
+- The actual mechanism for reading recipe reagents and checking bag
+  counts against them, to build the dynamic missing-materials list.
+- The exact wording of the yell request message.
+
 ## Milestones
 
 1. Scaffold the repository: the TOC, empty modules, the .pkgmeta file, and the lint and release workflow, including wow-secret-lint confirmed to scan a TOC that lists only 16001.
