@@ -1,0 +1,83 @@
+-- ============================================================
+-- SECTION 1: Profession detection shape (retail GetProfessions()
+-- vs classic flat skill-line list)
+-- ============================================================
+
+-- 1a. Retail-shape profession indices
+/run local p1,p2,arch,fish,cook,firstAid = GetProfessions(); print("primary1="..tostring(p1), "primary2="..tostring(p2), "arch="..tostring(arch), "fish="..tostring(fish), "cook="..tostring(cook), "firstAid="..tostring(firstAid))
+
+-- 1b. If 1a returned any non-nil indices, feed each one in here (replace N) to confirm GetProfessionInfo's shape
+/run local name,icon,skillLevel,maxSkillLevel,numAbilities,spelloffset,skillLine,skillModifier = GetProfessionInfo(N); print(name, skillLevel, maxSkillLevel, skillLine)
+
+-- 1c. Old classic-shape flat skill list, for comparison regardless of what 1a returns
+/run for i=1,GetNumSkillLines() do local name,isHeader,_,rank,_,_,maxRank = GetSkillLineInfo(i); print(i, name, isHeader, rank, maxRank) end
+
+-- ============================================================
+-- SECTION 2: Do we already know the five craft recipes as spells?
+-- ============================================================
+
+/run print("Fish Bowl:", IsSpellKnown(1229745), GetSpellInfo(1229745))
+/run print("Mana Well:", IsSpellKnown(1230564), GetSpellInfo(1230564))
+/run print("Incense Candle:", IsSpellKnown(1229705), GetSpellInfo(1229705))
+/run print("Basic Campfire:", IsSpellKnown(1229737), GetSpellInfo(1229737))
+/run print("First Aid Kit (candidate, maybe use-effect not craft):", IsSpellKnown(1307244), GetSpellInfo(1307244))
+
+-- ============================================================
+-- SECTION 3: Reagent/item counts by name (no item IDs needed -
+-- GetItemCount accepts a name string directly)
+-- ============================================================
+
+/run print("Raw Brilliant Smallfish:", GetItemCount("Raw Brilliant Smallfish"), " Empty Vial:", GetItemCount("Empty Vial"))
+/run print("Peacebloom:", GetItemCount("Peacebloom"), " Silverleaf:", GetItemCount("Silverleaf"))
+/run print("Simple Wood:", GetItemCount("Simple Wood"), " Flint and Tinder:", GetItemCount("Flint and Tinder"))
+/run print("Fish Bowl in bags:", GetItemCount(279967), " Mana Well in bags:", GetItemCount(279956), " Incense Candle in bags:", GetItemCount(279962), " Campfire Kit in bags:", GetItemCount(279981), " First Aid Kit in bags:", GetItemCount(279968))
+
+-- ============================================================
+-- SECTION 4: Does a retail-shaped C_TradeSkillUI namespace exist,
+-- and if so what does it actually expose? (dumps every function
+-- name it finds - this is the single most useful command here)
+-- ============================================================
+
+/run if C_TradeSkillUI then local n=0; for k in pairs(C_TradeSkillUI) do print("C_TradeSkillUI."..k); n=n+1 end; print(n.." total") else print("C_TradeSkillUI does not exist") end
+
+-- 4b. If 4 found GetRecipeInfo, try it against a known recipe spell ID (recipeID often == spellID in this data model)
+/run if C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then local info = C_TradeSkillUI.GetRecipeInfo(1229745); if info then for k,v in pairs(info) do print(k, tostring(v)) end else print("GetRecipeInfo(1229745) returned nil") end end
+
+-- 4c. If 4 found GetRecipeSchematic (the modern reagent/output API), try it too
+/run if C_TradeSkillUI and C_TradeSkillUI.GetRecipeSchematic then local s = C_TradeSkillUI.GetRecipeSchematic(1229745, false); if s then print("got schematic, reagentSlotCount="..tostring(s.reagentSlotCount)) else print("GetRecipeSchematic(1229745) returned nil") end end
+
+-- 4d. Old classic-shape equivalent, for comparison
+/run print("GetTradeSkillInfo exists:", GetTradeSkillInfo ~= nil, " GetTradeSkillReagentInfo exists:", GetTradeSkillReagentInfo ~= nil, " DoTradeSkill exists:", DoTradeSkill ~= nil)
+
+-- ============================================================
+-- SECTION 5: Resolve the First Aid Kit mystery - enumerate the
+-- First Aid tab of your spellbook directly to find the real
+-- craft-recipe spell (works whether or not professions use the
+-- classic skill-line list or the retail GetProfessions() shape)
+-- ============================================================
+
+-- 5a. List every spellbook tab (profession tabs show up here on both classic and pre-C_SpellBook retail)
+/run for i=1,GetNumSpellTabs() do local name,_,offset,numSpells = GetSpellTabInfo(i); print(i, name, "offset="..offset, "numSpells="..numSpells) end
+
+-- 5b. If 5a shows a "First Aid" tab, plug its offset/numSpells in here to list every spell in it
+/run local offset, numSpells = OFFSET, NUMSPELLS; for i=offset+1, offset+numSpells do local name = GetSpellBookItemName(i, "spell"); if name then print(i, name) end end
+
+-- 5c. Modern-retail equivalent, in case the old spellbook API above returns nothing
+/run if C_SpellBook then print("C_SpellBook exists"); if C_SpellBook.GetNumSpellBookSkillLines then print("numSkillLines="..C_SpellBook.GetNumSpellBookSkillLines()) end else print("no C_SpellBook") end
+
+-- ============================================================
+-- SECTION 6 (CONSUMES REAGENTS): attempt a fully silent craft via
+-- CastSpellByID, bypassing any tradeskill UI entirely. Watch for:
+-- does a frame pop open anyway? does it error? does the item
+-- actually appear in bags 10s later (after the cast time)?
+-- ============================================================
+
+/run CastSpellByID(1229745) -- Fish Bowl: consumes 1 Raw Brilliant Smallfish + 1 Empty Vial, 10s cast
+
+-- ============================================================
+-- SECTION 7 (CONSUMES THE ITEM): attempt to use/place the result.
+-- Expect this to enter ground-targeting mode per your description -
+-- report exactly what happens (reticle? instant? error?).
+-- ============================================================
+
+/run UseItemByName(279967) -- Fish Bowl
