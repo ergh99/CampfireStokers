@@ -45,13 +45,15 @@ jobs:
         run: lua tests/run_tests.lua
 
       - name: wow-secret-lint
-        # TOC-based discovery skips this addon: its Interface line (16001)
-        # isn't recognized as a retail number, so `path: .` reports "found
-        # 1 .toc file(s), none targeting retail; nothing to check" and
-        # exits 0 without scanning anything. Pointing it at the module
-        # files directly bypasses that discovery and scans for real
-        # (confirmed locally: filesScanned: 8, matching the module count).
-        uses: Booyaka101/wow-secret-lint@e59a34337491d40cc53adc504bb2c51c580d20eb # v1.8.0
+        # v1.8.1 fixed the bug that made this necessary: 16001 is now
+        # correctly recognized as a retail (Forever) interface number
+        # instead of being misread as Classic and skipped. TOC-based
+        # discovery (path: .) works correctly as of v1.9.0 - confirmed
+        # locally: flavour: "forever", filesScanned: 8 (matching the
+        # real module count), 0 findings. This is an improvement over
+        # the old explicit module list, which needed a manual update
+        # every time a new module file was added to the TOC.
+        uses: Booyaka101/wow-secret-lint@9aec64d53297fd1d26643d0a1455d60bd227f9c5 # v1.9.0
         with:
-          path: "Core.lua Data.lua Detection.lua Launcher.lua Options.lua Send.lua Tree.lua UI.lua"
+          path: "."
           args: "--strict"

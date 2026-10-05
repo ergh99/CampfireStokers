@@ -164,11 +164,15 @@ zip named `CampfireStokers` (per `.pkgmeta`'s `package-as`) with `@project-versi
 in the TOC substituted for the tag, and attaches it to a GitHub Release.
 Nothing under `docs/`, `tests/`, `.github/`, or `AGENTS.md` ships in the zip.
 
-**Resolved item**: `wow-secret-lint`'s TOC-based discovery does skip this
-addon — confirmed locally (`npx wow-secret-lint@1.8.0 . --strict` reports
-"found 1 .toc file(s), none targeting retail; nothing to check" and exits
-0, because the 16001 Interface line isn't recognized as retail). `ci.yml`'s
-`path` input therefore lists the module files directly rather than `.`;
-that scans them for real (`filesScanned: 8` in `--format json`, 0 findings).
-If a new module file is added to the TOC's load order, add it to that
-`path` list too, or the linter silently won't see it.
+**Resolved item, then fixed upstream**: `wow-secret-lint`'s TOC-based
+discovery used to skip this addon (16001 was misread as Classic, not
+retail), which is why `ci.yml`'s `path` input used to list the module
+files directly instead of `.`. Fixed upstream in v1.8.1
+([Booyaka101/wow-secret-lint#14](https://github.com/Booyaka101/wow-secret-lint/issues/14)):
+16001 is now correctly recognized as a Forever/retail interface number.
+Confirmed locally with v1.9.0 (`npx wow-secret-lint@1.9.0 . --strict
+--format json`): `flavour: "forever"`, `filesScanned: 8` (the real
+module count), 0 findings - `ci.yml`'s `path` is back to `.`, which is
+better than the old explicit list since it now tracks the TOC's file
+list automatically; a new module file added to the TOC's load order no
+longer needs a separate manual update here.

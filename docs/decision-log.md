@@ -744,3 +744,26 @@ check, all 81 tests, and (newly) a real local `luacheck .` run, 0
 warnings/errors - this closes the "no working local luacheck" gap T10's
 entries noted earlier; CI is no longer the only place this check runs
 for real.
+
+## 2026-10-04 — wow-secret-lint's TOC-discovery bug fixed upstream
+
+T1's workaround (pointing `ci.yml`'s `path` at the module files
+directly, since TOC-based discovery misread this addon's 16001
+Interface line as Classic and skipped it entirely) is no longer needed.
+Fixed upstream in v1.8.1
+([Booyaka101/wow-secret-lint#14](https://github.com/Booyaka101/wow-secret-lint/issues/14),
+filed off this project's own finding) - 16001 is now correctly
+recognized as Forever/retail. v1.9.0 additionally narrows the
+removed-symbol list for Forever-only targets based on a real scan of
+the client, cutting false positives (`GetWeaponEnchantInfo`,
+`getglobal`, `setglobal`, and others) - doesn't change anything for us
+directly (this addon never called those), but the discovery fix does.
+
+Confirmed locally: `npx wow-secret-lint@1.9.0 . --strict --format json`
+reports `flavour: "forever"`, `filesScanned: 8` (the real module count),
+0 findings - using plain `path: .`, no explicit file list.
+`.github/workflows/ci.yml` updated to pin v1.9.0 by commit SHA and use
+`path: "."` instead of the old explicit module list - an improvement,
+not just a simplification, since `.` now tracks the TOC's file list
+automatically (a new module no longer needs a separate manual `path`
+update, closing that sharp edge from T1).
