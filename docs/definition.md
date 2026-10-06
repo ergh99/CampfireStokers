@@ -266,7 +266,9 @@ functionally different, not "the same good, upgraded":**
 
 **Confirmed (2026-10-02)**: the yell request message follows the
 structure "I can place a/an &lt;item link&gt; at the campfire if someone
-wants to provide &lt;list of missing materials&gt;," with the item link
+wants to provide &lt;list of missing materials&gt;," where "a/an" stands
+for whichever of "a" or "an" fits the item name (chosen in code since
+2026-10-05, see `CS.Professions.IndefiniteArticle`), with the item link
 and the missing-materials list both generated dynamically (the latter
 from the reagent/bag-count comparison already resolved above).
 

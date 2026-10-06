@@ -162,8 +162,20 @@ function CS.Professions.EvaluateGood(entry, options)
     }
 end
 
+-- Pure. "an" before a name starting with a vowel letter, "a" otherwise.
+-- Letter-based, not sound-based: right for all 11 GOODS names ("an
+-- Incense Candle", "an Enchanted Lute", "a" for the rest), none of which
+-- start with a silent "h" or a "you"-sounding "u"/"eu".
+function CS.Professions.IndefiniteArticle(name)
+    if name and name:match("^%s*[AEIOUaeiou]") then
+        return "an"
+    end
+    return "a"
+end
+
 -- Builds the confirmed yell template: "I can place a/an <item link> at
--- the campfire if someone wants to provide <list>." `options`:
+-- the campfire if someone wants to provide <list>." - with "a" or "an"
+-- chosen from the item's plain name via IndefiniteArticle. `options`:
 --   getItemInfo(id) -> name, link, ...  defaults to C_Item.GetItemInfo.
 --     Used for both the main item AND each missing reagent, preferring
 --     the link over the plain name for both (confirmed in-client that
@@ -206,7 +218,8 @@ function CS.Professions.BuildRequestMessage(entry, itemId, missing, options)
         table.insert(parts, missingReagent.missingCount .. " " .. display)
     end
 
-    return "I can place a/an " .. link .. " at the campfire if someone wants to provide "
+    local article = CS.Professions.IndefiniteArticle(itemName or entry.itemName)
+    return "I can place " .. article .. " " .. link .. " at the campfire if someone wants to provide "
         .. table.concat(parts, ", ") .. "."
 end
 

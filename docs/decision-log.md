@@ -1105,3 +1105,16 @@ records the change.
 
 Verified clean: syntax, `luacheck .` (0 warnings), all 110 tests, and
 `wow-secret-lint@1.9.0 --strict` (0 errors/0 warnings).
+
+## 2026-10-05 — Yell request message picks "a" or "an"
+
+Reported in-client: the request yell read "I can place a/an <item>"
+literally. New pure `CS.Professions.IndefiniteArticle(name)` returns
+"an" before a vowel letter and "a" otherwise, and `BuildRequestMessage`
+uses it with the item's plain name. Letter-based rather than
+sound-based, which is right for all 11 goods (only Incense Candle and
+Enchanted Lute take "an"). Three new unit tests; the three existing
+message tests now expect "a" for Fish Bowl. Confirmed in-client by the
+player: "confirmed working". Verified clean: syntax, `luacheck .`
+(0 warnings), all 113 tests, and `wow-secret-lint@1.9.0 --strict`
+(0 errors/0 warnings).

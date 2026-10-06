@@ -283,3 +283,14 @@ infrastructure; adds to them, doesn't replace them).
       of `docs/profession-button-appearance-findings.md`) across
       auto-open, aura drop and manual open away from a fire: "button
       visibility was static in each scenario as desired".
+- [x] **Yell request message's "a/an" is literal.** Reported in-client
+      2026-10-05: the message reads "I can place a/an &lt;item link&gt;
+      ..." verbatim. `Professions.lua`'s `BuildRequestMessage` hard-codes
+      "a/an". **Desired**: use "a" or "an" as appropriate for the item
+      name in the generated message.
+      **Done 2026-10-05, confirmed in-client ("confirmed working")**: new pure
+      `CS.Professions.IndefiniteArticle(name)` ("an" before a vowel
+      letter, "a" otherwise - right for all 11 GOODS names, of which
+      only Incense Candle and Enchanted Lute take "an"), used by
+      `BuildRequestMessage` with the item's plain name. Unit tests cover
+      both articles and every GOODS name.

@@ -212,7 +212,7 @@ tests["BuildRequestMessage matches the confirmed template"] = function()
             end,
         }
     )
-    assert(message == "I can place a/an [Fish Bowl] at the campfire if someone wants to provide "
+    assert(message == "I can place a [Fish Bowl] at the campfire if someone wants to provide "
         .. "2 Raw Fish, 1 Copper Ore.")
 end
 
@@ -235,7 +235,7 @@ tests["BuildRequestMessage prefers a missing reagent's link over its name"] = fu
             end,
         }
     )
-    assert(message == "I can place a/an [Fish Bowl] at the campfire if someone wants to provide "
+    assert(message == "I can place a [Fish Bowl] at the campfire if someone wants to provide "
         .. "2 [Raw Fish].")
 end
 
@@ -247,7 +247,40 @@ tests["BuildRequestMessage falls back to the entry's item name without an item-i
         {},
         { getItemInfo = function() return nil end }
     )
-    assert(message:find("a/an Fish Bowl", 1, true) ~= nil)
+    assert(message:find("place a Fish Bowl", 1, true) ~= nil)
+end
+
+-- Reported from in-client testing 2026-10-05: the message used to read
+-- "a/an" literally.
+tests["BuildRequestMessage uses \"an\" for an item name starting with a vowel"] = function()
+    local CS = loadProfessions()
+    local message = CS.Professions.BuildRequestMessage(
+        { itemName = "Incense Candle" },
+        279962,
+        {},
+        { getItemInfo = function() return "Incense Candle", "[Incense Candle]" end }
+    )
+    assert(message:find("I can place an [Incense Candle] at", 1, true) ~= nil)
+end
+
+tests["IndefiniteArticle picks \"an\" only for the two vowel-initial GOODS names"] = function()
+    local CS = loadProfessions()
+    local expected = {
+        [CS.Data.L.pg_incensecandle] = "an",
+        [CS.Data.L.pg_enchantedlute] = "an",
+    }
+    for _, entry in ipairs(CS.Professions.GOODS) do
+        local want = expected[entry.itemName] or "a"
+        assert(CS.Professions.IndefiniteArticle(entry.itemName) == want,
+            entry.itemName .. " should take '" .. want .. "'")
+    end
+end
+
+tests["IndefiniteArticle handles lower case and a missing name"] = function()
+    local CS = loadProfessions()
+    assert(CS.Professions.IndefiniteArticle("enchanted lute") == "an")
+    assert(CS.Professions.IndefiniteArticle("lodestone") == "a")
+    assert(CS.Professions.IndefiniteArticle(nil) == "a")
 end
 
 -- Confirmed from in-client testing: broadcasting a raw "item <id>"
