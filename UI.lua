@@ -14,6 +14,10 @@ local CATEGORY_GAP = 6
 local PANEL_WIDTH = 460
 local HIGHLIGHT_DURATION = 0.15
 local PROFESSION_ICON_SIZE = 64
+-- The glow texture has wide transparent padding; 110 puts its visible
+-- ring on a 64px button's edge (confirmed in-client, Round 7 of
+-- docs/profession-button-appearance-findings.md).
+local PROFESSION_GLOW_SIZE = 110
 local PROFESSION_ICON_GAP = 8
 local PROFESSION_BLOCK_SIDE_PADDING = 8
 local PROFESSION_BLOCK_TOP_GAP = 8
@@ -148,13 +152,15 @@ local function hideRowTooltip()
     GameTooltip:Hide()
 end
 
-local function professionBorderColor(action)
+-- Chosen in-client, see docs/profession-button-appearance-findings.md
+-- Rounds 8-10. Request is red-orange to match the red of yell messages.
+local function professionGlowColor(action)
     if action == "use" then
-        return 0.3, 0.9, 0.3
+        return 0.1, 0.9, 0.1
     elseif action == "craft" then
-        return 0.4, 0.6, 1
+        return 0.1, 0.3, 1
     end
-    return 0.8, 0.55, 0.2
+    return 1, 0.2, 0
 end
 
 -- Creates one of the 11 fixed profession-good buttons, permanently bound
@@ -166,17 +172,23 @@ end
 -- double-craft or double-yell - see docs/decision-log.md.
 local function createProfessionButton(entry)
     local button = CreateFrame("Button", "CampfireStokersProfessionButton" .. entry.id, frame,
-        "SecureActionButtonTemplate, BackdropTemplate")
+        "SecureActionButtonTemplate")
     button:SetSize(PROFESSION_ICON_SIZE, PROFESSION_ICON_SIZE)
     button:RegisterForClicks("AnyUp")
-    button:SetBackdrop({
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 10,
-    })
 
     button.icon = button:CreateTexture(nil, "ARTWORK")
-    button.icon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
-    button.icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+    button.icon:SetAllPoints()
+
+    -- State glow instead of a backdrop border: the old 10px tooltip
+    -- border was almost entirely covered by the icon, and thin/solid/
+    -- stacked alternatives all read poorly in-client (see
+    -- docs/profession-button-appearance-findings.md Rounds 1-7). ADD
+    -- blend keeps the icon visible; BLEND covered it (Round 8).
+    button.glow = button:CreateTexture(nil, "OVERLAY")
+    button.glow:SetTexture("Interface/Buttons/UI-ActionButton-Border")
+    button.glow:SetBlendMode("ADD")
+    button.glow:SetSize(PROFESSION_GLOW_SIZE, PROFESSION_GLOW_SIZE)
+    button.glow:SetPoint("CENTER")
 
     button:SetScript("OnEnter", showRowTooltip)
     button:SetScript("OnLeave", hideRowTooltip)
@@ -212,7 +224,7 @@ end
 
 local function applyProfessionButtonState(button, result)
     button.icon:SetTexture(result.icon)
-    button:SetBackdropBorderColor(professionBorderColor(result.action))
+    button.glow:SetVertexColor(professionGlowColor(result.action))
 
     button.pendingAction = result.action
     button.pendingRecipeSpellId = result.recipeSpellId
@@ -268,10 +280,11 @@ end
 -- vanish and never come back after some number of aura flaps, which is
 -- exactly that failure mode. A caught error is reported (not silently
 -- swallowed) and treated as "not visible" for that entry.
+-- Deliberately not gated on CS.Detection.atFire: the buttons show
+-- whenever the panel does, including a manual open away from a fire and
+-- the auto-close grace period after the aura drops (see docs/tasks.md's
+-- "Profession button visibility").
 local function evaluateGoodSafely(entry)
-    if not CS.Detection.atFire then
-        return { visible = false }
-    end
     local ok, result = pcall(CS.Professions.EvaluateGood, entry)
     if not ok then
         print("Campfire Stokers: profession good '" .. entry.id .. "' failed to evaluate: " .. tostring(result))
@@ -438,6 +451,10 @@ function CS.UI.Show()
     end
     cancelPendingHide()
     CS.UI.isAutoOpened = false
+    -- Evaluate before showing, same as the auto-open path - otherwise a
+    -- manual open shows whatever the last refresh (possibly long ago)
+    -- laid out.
+    CS.UI.Refresh()
     frame:Show()
 end
 
@@ -478,7 +495,7 @@ function CS.UI.OnCampfireStateChanged(atFire)
     if not frame then
         return
     end
-    CS.UI.Refresh() -- the profession block's visibility is gated on atFire too
+    CS.UI.Refresh() -- evaluate the profession buttons before any auto-open below
     if atFire then
         cancelPendingHide()
         if not frame:IsShown() then

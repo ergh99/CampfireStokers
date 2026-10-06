@@ -1072,3 +1072,36 @@ the panel closes; logged as an open item in `docs/tasks.md`.
 
 Verified clean: syntax, `luacheck .` (0 warnings), all 110 tests, and
 `wow-secret-lint@1.9.0 --strict` (0 errors/0 warnings).
+
+## 2026-10-05 — Profession buttons: state glow, and shown whenever the panel is
+
+Two in-client reports, worked through round by round in
+`docs/profession-button-appearance-findings.md`.
+
+**Appearance.** The per-state border colors were being applied (Round 1
+printed the craft color `0.4, 0.6, 1` from the button), but the 10px
+tooltip border was almost entirely covered by the icon. A solid border
+read clearly but looked plain (Round 3); Blizzard's tinted item-quality
+frame looked better but too thin (Round 4), and stacking two copies left
+a visible seam (Round 5); a 16px tooltip border was less clear (Round 6).
+The classic action-button glow (`Interface/Buttons/UI-ActionButton-Border`,
+ADD blend, 110x110 on the 64px button) was "a definite improvement"
+(Round 7); BLEND mode covered the icon (Round 8). Colors chosen by the
+player: craft `0.1, 0.3, 1`, use `0.1, 0.9, 0.1`, request `1, 0.2, 0`
+(red-orange, to tie it to the red of yell messages) (Rounds 8-10).
+`UI.lua`'s profession buttons dropped `BackdropTemplate`; the icon fills
+the button and a `glow` texture is tinted per state.
+
+**Visibility.** The buttons were hidden whenever `CS.Detection.atFire`
+was false, so they vanished during the auto-close grace period after the
+aura dropped (Round 17 of the crafting ledger) and never showed on a
+manual open away from a fire; and a manual open never refreshed, showing
+whatever the last refresh laid out. The player's decision: the buttons
+show whenever the panel is visible, and are evaluated before it is
+shown. `evaluateGoodSafely` no longer checks `atFire`, and `CS.UI.Show`
+refreshes before showing. Verified in-client across auto-open, aura drop
+and manual open (Round 11). `docs/definition.md`'s proximity note
+records the change.
+
+Verified clean: syntax, `luacheck .` (0 warnings), all 110 tests, and
+`wow-secret-lint@1.9.0 --strict` (0 errors/0 warnings).

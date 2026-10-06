@@ -188,7 +188,9 @@ infrastructure; adds to them, doesn't replace them).
       each profession button's visibility/enabled state on the same
       `CS.Detection` at-fire boolean (spell `1229739`, the "Welcoming
       Campfire" aura) already driving the rest of this panel - no new
-      aura or API needed.
+      aura or API needed. **Superseded 2026-10-05**: buttons are no
+      longer gated on at-fire - see "Profession button visibility"
+      below.
 - [x] Confirmed 2026-10-02 (player domain knowledge): each profession has
       (at least) three reward tiers, functionally different per tier, not
       "the same good, upgraded" - tier 1 is a placeable sit-buff
@@ -258,12 +260,26 @@ infrastructure; adds to them, doesn't replace them).
       `EvaluateGood`, `BuildRequestMessage` via dependency injection,
       `Craft`/`CreateEventFrame` via the same monkey-patch/fake-frame
       patterns `send_spec.lua`/`detection_spec.lua` already use).
-- [ ] **Profession buttons vanish when the campfire aura drops.**
-      Observed in-client 2026-10-05 (Round 17 of
-      `docs/craft-profession-switch-findings.md`): interrupting a craft
-      cast by moving the character removes the campfire aura; the panel
-      reacts by hiding the profession (crafting) buttons right away,
-      while the panel itself and its other elements stay visible until
-      the delayed auto-close timer finishes. **Desired**: the profession
-      buttons stay visible for as long as the panel does, until that
-      timer closes the panel. Not yet addressed.
+- [x] **Profession button visibility.** Observed in-client 2026-10-05
+      (Round 17 of `docs/craft-profession-switch-findings.md`):
+      interrupting a craft cast by moving the character removes the
+      campfire aura; the panel reacts by hiding the profession buttons
+      right away, while the panel itself and its other elements stay
+      visible until the delayed auto-close timer finishes. Also reported
+      the same day (`docs/profession-button-appearance-findings.md`):
+      the buttons are only ever shown or hidden as a whole. Today
+      `UI.lua`'s `evaluateGoodSafely` treats every button as hidden
+      whenever `CS.Detection.atFire` is false. **Desired** (the user's
+      answers, recorded in that ledger): the profession buttons are
+      shown whenever the panel is visible - including a panel opened
+      manually away from a campfire ("Always") - and when the panel
+      auto-opens, the buttons are evaluated first, so the panel never
+      appears without them or has them pop in afterwards ("Evaluated
+      first").
+      **Done 2026-10-05**: `evaluateGoodSafely` no longer checks
+      `atFire`, and `CS.UI.Show` (manual open/toggle) now calls
+      `CS.UI.Refresh()` before showing, as the auto-open path in
+      `OnCampfireStateChanged` already did. Verified in-client (Round 11
+      of `docs/profession-button-appearance-findings.md`) across
+      auto-open, aura drop and manual open away from a fire: "button
+      visibility was static in each scenario as desired".

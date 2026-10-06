@@ -229,14 +229,13 @@ Kit); the full command-by-command log lives in `docs/research.txt`:
   secure attributes, not to call a function.
 
 - Proximity: the crafted good's own use-validation enforces being at a
-  campfire itself, but the panel should not rely on that alone - it
-  should gate each profession button's visibility/enabled state on the
-  same signal already driving the rest of this panel
-  (`CS.Detection`'s at-fire boolean, which now checks both the
-  "Welcoming Campfire" aura and the permanent tutorial campfires' aura
-  - see [Campfire Detection](#campfire-detection-and-secret-value-safety)).
-  No new aura or API needed; this is a reuse of existing infrastructure,
-  not a new discovery.
+  campfire itself. **Changed 2026-10-05 by the player's decision**: the
+  profession buttons are no longer gated on `CS.Detection`'s at-fire
+  boolean. They show whenever the panel is visible - including a panel
+  opened manually away from a campfire, and the auto-close grace period
+  after the aura drops - and are evaluated before the panel is shown.
+  The at-fire boolean still drives the panel's own auto-open/auto-close
+  (see [Campfire Detection](#campfire-detection-and-secret-value-safety)).
 
 **Confirmed (2026-10-02, via the player's own domain knowledge - not yet
 in-client-tested): each profession has (at least) three reward tiers,
