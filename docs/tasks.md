@@ -312,3 +312,23 @@ infrastructure; adds to them, doesn't replace them).
       made the click place the Sharpening Wheel (Round 2). `UI.lua` now
       registers both, and `PreClick` ignores the press so craft/request
       still fire once per click.
+- [x] **255-character check counts item links at full raw length.**
+      Reported in-client 2026-10-05: the Fishing and First Aid request
+      yells were refused for a character with none of the materials.
+      `Send.lua`'s `Classify` checks `#text > 255` (raw bytes). Findings
+      (`docs/yell-length-findings.md`): the game's limit is 255 visible
+      characters with each item link counting as its visible `[Name]`,
+      brackets included (Rounds 4-5); raw length up to 619 bytes of links
+      was accepted (Rounds 1-2); over the limit `SendChatMessage` raises
+      "Chat message limits exceeded" (Rounds 3-5). **Desired**: count
+      links by their visible text when applying the 255 limit. Tested on
+      SAY only; confirm on YELL after the fix.
+      **Done 2026-10-05, confirmed in-client** (Round 6, a real request
+      yell: "confirmed working"): new pure
+      `CS.Send.VisibleLength(text)` strips `|H...|h`/`|h` link wrappers,
+      `|cAARRGGBB` color starts and `|r` resets before counting;
+      `Classify` checks that against 255 instead of `#text`. Four new
+      unit tests cover the Round 5 boundary (255 passes, 256 fails) and
+      a 10-link message far over 255 raw bytes. `Tree.lua`'s phrase
+      editor still checks raw `#text`; unchanged, since it wasn't part
+      of this report.

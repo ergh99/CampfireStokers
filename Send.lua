@@ -44,6 +44,22 @@ function CS.Send.ContainsTargetToken(text)
     return text:find("%%t") ~= nil
 end
 
+-- Pure: `text`'s length as the client counts it against the 255 limit.
+-- Confirmed in-client 2026-10-05 (docs/yell-length-findings.md): an
+-- item link counts as its visible text, brackets included - 244 plain
+-- characters + a `[Fish Bowl]` link (255) sent, 245 + the link (256)
+-- raised "Chat message limits exceeded" - while 619 raw bytes of links
+-- sent fine. So hyperlink and color escape codes don't count: strip
+-- `|H...|h` / `|h` wrappers, `|cAARRGGBB` color starts and `|r` resets,
+-- and count what's left.
+function CS.Send.VisibleLength(text)
+    local visible = text
+        :gsub("|H.-|h(.-)|h", "%1")
+        :gsub("|c%x%x%x%x%x%x%x%x", "")
+        :gsub("|r", "")
+    return #visible
+end
+
 -- Pure: decides what sending `text` would do, without doing it. `options`:
 --   sendMode        "SAY" or "YELL", the panel toggle; used when text has no
 --                    leading slash command.
@@ -62,7 +78,7 @@ function CS.Send.Classify(text, options)
         return { kind = "rejected", reason = "There's no text to send." }
     end
 
-    if #text > PHRASE_TEXT_LIMIT then
+    if CS.Send.VisibleLength(text) > PHRASE_TEXT_LIMIT then
         return { kind = "rejected", reason = "Phrase text is longer than " .. PHRASE_TEXT_LIMIT .. " characters." }
     end
 

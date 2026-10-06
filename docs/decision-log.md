@@ -1143,3 +1143,23 @@ Found during Round 3, not fixed here: the Fishing and First Aid request
 yells were refused by the 255-character check, apparently because item
 links are counted at their full raw length - investigated in
 `docs/yell-length-findings.md`.
+
+## 2026-10-05 — 255 limit counts links by visible text
+
+Found during the use-click verification: the Fishing and First Aid
+request yells were refused by `Send.Classify`'s 255 check for a
+character with none of the materials. Investigated in
+`docs/yell-length-findings.md`: the client's limit is 255 visible
+characters with an item link counting as its bracketed name (244 plain
++ `[Fish Bowl]` sent, 245 + the link raised "Chat message limits
+exceeded", Round 5), while 317 and 619 raw bytes of links sent intact
+(Rounds 1-2). Plain text over 255 raises that error from
+`SendChatMessage` (Round 3).
+
+New pure `CS.Send.VisibleLength(text)` strips link wrappers, color
+starts and resets before counting, and `Classify` checks it instead of
+`#text`. Four new unit tests cover the boundary and a long all-link
+message. Confirmed in-client with a real request yell (Round 6).
+`Tree.lua`'s phrase-editor check still uses raw `#text`, unchanged.
+Verified clean: syntax, `luacheck .` (0 warnings), all 117 tests, and
+`wow-secret-lint@1.9.0 --strict` (0 errors/0 warnings).

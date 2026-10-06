@@ -51,6 +51,42 @@ tests["Classify rejects text over 255 characters"] = function()
     assert(action.kind == "rejected")
 end
 
+-- Item links count by their visible "[Name]", brackets included, not
+-- their raw escape-code length - confirmed in-client 2026-10-05, see
+-- docs/yell-length-findings.md Rounds 1-5. Hand-built in the standard
+-- item-link format; the real client link's raw codes weren't captured.
+local FISH_BOWL_LINK = "|cffffffff|Hitem:279967::::::::80:::::|h[Fish Bowl]|h|r"
+
+tests["VisibleLength counts an item link as its bracketed name"] = function()
+    local CS = loadSend()
+    assert(#FISH_BOWL_LINK > 11)
+    assert(CS.Send.VisibleLength(FISH_BOWL_LINK) == 11)
+    assert(CS.Send.VisibleLength("plain text") == 10)
+end
+
+tests["Classify accepts 244 plain characters plus a link (255 visible)"] = function()
+    local CS = loadSend()
+    local action = CS.Send.Classify(string.rep("x", 244) .. FISH_BOWL_LINK, { sendMode = "YELL" })
+    assert(action.kind == "chat")
+end
+
+tests["Classify rejects 245 plain characters plus a link (256 visible)"] = function()
+    local CS = loadSend()
+    local action = CS.Send.Classify(string.rep("x", 245) .. FISH_BOWL_LINK, { sendMode = "YELL" })
+    assert(action.kind == "rejected")
+end
+
+tests["Classify accepts many links whose raw length is far over 255"] = function()
+    local CS = loadSend()
+    local links = {}
+    for i = 1, 10 do
+        links[i] = FISH_BOWL_LINK
+    end
+    local text = table.concat(links, " ")
+    assert(#text > 255)
+    assert(CS.Send.Classify(text, { sendMode = "YELL" }).kind == "chat")
+end
+
 -- Classify: /s, /say, /y, /yell, /e, /emote, case and spacing
 
 tests["/s and /say send on SAY, case-insensitively"] = function()
