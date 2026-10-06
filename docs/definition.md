@@ -71,7 +71,7 @@ Detection is event-driven and never polls. The add-on registers UNIT_AURA for th
 Since 12.0, aura data is secret whenever addon restrictions are active, which covers combat, boss encounters, Mythic+ runs, and PvP matches ([Warcraft Wiki: It's Secret](https://warcraft.wiki.gg/wiki/Secret_Values)). Addon code is always tainted, so it cannot compare or branch on a secret value, and a pcall does not undo the taint. The rule is to ask the client first, then read:
 
 1. Ask whether aura reads are allowed. If C_Secrets.ShouldAurasBeSecret() returns true, skip the read and treat the player as not at a campfire.
-2. Read one aura only: C_UnitAuras.GetPlayerAuraBySpellID with the campfire spell ID. Community references treat this player-only lookup as safe for tainted callers ([RGX-Framework: Auras](https://github.com/RGXMods/RGX-Framework/wiki/Auras/94d9b6f03c333f1f4770e67ee60ba6162710d556), updated Aug 14, 2026), but a measurement on the Forever beta found every aura read throwing while secrecy was active ([forever-addon-kit](https://github.com/Thunderz96/forever-addon-kit)). Step 1 is therefore mandatory, not an optimization.
+2. Read one aura at a time, by spell ID only: C_UnitAuras.GetPlayerAuraBySpellID, never by index/slot/instance ID. Two distinct spell IDs are checked this way - the "Welcoming Campfire" aura from a regular campfire, and a second aura the permanent, non-despawning tutorial campfires in starting zones apply instead (confirmed 2026-10-05; without checking both, sitting at a tutorial campfire would never register as "at a campfire" at all) - the player counts as at a campfire if either one is present. Community references treat this player-only lookup as safe for tainted callers ([RGX-Framework: Auras](https://github.com/RGXMods/RGX-Framework/wiki/Auras/94d9b6f03c333f1f4770e67ee60ba6162710d556), updated Aug 14, 2026), but a measurement on the Forever beta found every aura read throwing while secrecy was active ([forever-addon-kit](https://github.com/Thunderz96/forever-addon-kit)). Step 1 is therefore mandatory, not an optimization.
 3. Check the result before using it. canaccessvalue(result) must be true before the add-on tests fields or branches on it. An unreadable or nil result counts as no campfire aura.
 
 UNIT_AURA payloads serve only as a trigger. Aura instance IDs are never secret, but the aura contents can be, so the handler ignores the payload and does the guarded lookup instead. Because the guard tests restriction state rather than combat alone, the same code stays correct in encounters and PvP with no separate InCombatLockdown check.
@@ -138,8 +138,13 @@ button attempts, in order, with no confirmation dialog at any step
 
 1. **Use.** If the consumable is already in the player's bags, use/place
    it immediately.
-2. **Craft.** If not, attempt to craft it - fully silently, with no
-   crafting-UI interaction - assuming the required materials are present.
+2. **Craft.** If not, attempt to craft it, assuming the required
+   materials are present. **Not literally silent** (confirmed during
+   implementation - see "Confirmed via in-client research" below): the
+   real crafting frame must flash open and immediately closed again for
+   `CraftRecipe` to actually work, rather than the fully invisible call
+   this was originally expected to be. Still one click and no manual
+   interaction from the player, just not a truly silent API call.
 3. **Request.** If materials are also missing, yell a message offering to
    craft and place the good in exchange for the missing materials, with
    the specific missing items and quantities generated dynamically into
@@ -160,24 +165,45 @@ Kit); the full command-by-command log lives in `docs/research.txt`:
   `GetProfessionInfo()` work as retail's do. First Aid is not tracked
   through them (matches modern retail, which also dropped it from
   `GetProfessions()`).
-- "Is this good craftable by this character" is `craftable` on
-  `C_TradeSkillUI.GetRecipeInfo(recipeSpellID)` - the craft spell ID
-  doubles as the recipe ID directly. (Not `learned`, which reads `false`
-  even on a character with the profession well past skill 20 - it tracks
-  something else, unused here.)
-- "Does this character have the reagents on hand right now" is
-  `C_TradeSkillUI.GetCraftableCount(recipeSpellID)` - confirmed to do real
-  reagent-ratio math (returned 14 against 14 of one reagent and 17 of
-  another, i.e. the scarcer at a 1:1 ratio). This is the yes/no gate for
-  the craft-vs-yell fork; no manual reagent-count comparison needed for
-  that part.
-- Reagent item IDs (for building the dynamic missing-materials list) are
-  reachable via
-  `C_TradeSkillUI.GetRecipeSchematic(recipeSpellID, false).reagentSlotSchematics[n].reagents[1].itemID`.
+- "Is this good craftable by this character" is **not** `craftable` on
+  `C_TradeSkillUI.GetRecipeInfo(recipeSpellID)` - confirmed during
+  implementation to return `true` even for a profession the character
+  doesn't have at all. The real per-character gate is
+  `C_TradeSkillUI.IsRecipeProfessionLearned(recipeSpellID)` - confirmed
+  live to correctly distinguish a known profession (`true`) from an
+  unknown one (`false`) on the same character. (`learned` on
+  `GetRecipeInfo` is also not it - it reads `false` even on a character
+  with the profession well past skill 20; tracks something else, unused
+  here.)
+- "Does this character have the reagents on hand right now" is **not**
+  `C_TradeSkillUI.GetCraftableCount(recipeSpellID)`, despite initially
+  looking like exactly that signal (it did real reagent-ratio math in
+  the original test - 14 against 14 of one reagent and 17 of another,
+  the scarcer at a 1:1 ratio). Confirmed during implementation: it
+  returned `0` for two different recipes while the character held
+  46x/62x of the only two reagents required (1 each) - it can be `0`
+  for reasons that have nothing to do with missing materials (a
+  cooldown or similar). The reliable signal is walking
+  `C_TradeSkillUI.GetRecipeSchematic(recipeSpellID, false).reagentSlotSchematics[n].reagents[1].itemID`
+  directly against `C_Item.GetItemCount` for each required reagent - the
+  same walk needed anyway to build the dynamic missing-materials list,
+  so no second, unreliable signal is needed on top of it.
 - `C_TradeSkillUI.CraftRecipe(recipeSpellID)` is callable from ordinary
-  (non-secure) addon code and was confirmed, live, to actually craft the
-  item (bag count 0 -> 1, reagents consumed) with no further UI
-  interaction. Crafting is **not** the hard part.
+  (non-secure) addon code, but **confirmed during implementation
+  (2026-10-05) to do nothing at all - no error, no cast bar, no
+  animation - unless the real Blizzard crafting frame is open to that
+  recipe first.** The original research pass's "bag count 0 -> 1" test
+  happened to have the frame open at the time, without that being
+  noted. The real, confirmed mechanism: call
+  `C_TradeSkillUI.OpenRecipe(recipeSpellID)` (confirmed to be the right
+  entry point - `OpenTradeSkill` was tried first and does nothing
+  visible, which isn't sufficient), then `CraftRecipe(recipeSpellID)`,
+  then hide `ProfessionsFrame` immediately - confirmed this does
+  **not** interrupt the resulting cast bar/animation, which plays
+  through to completion regardless of the frame's visibility. The net
+  effect is a single, synchronous, effectively invisible flash rather
+  than true silence, but it's still one click from the player's
+  perspective.
 - **Corrected risk, was previously mislabeled as crafting**: using/placing
   the crafted good is the step that's actually hard. `C_Item.UseItemByName`
   cannot be called from ordinary insecure Lua at all (confirmed: it throws
@@ -197,8 +223,9 @@ Kit); the full command-by-command log lives in `docs/research.txt`:
   campfire itself, but the panel should not rely on that alone - it
   should gate each profession button's visibility/enabled state on the
   same signal already driving the rest of this panel
-  (`CS.Detection`'s at-fire boolean, spell ID `1229739`, the "Welcoming
-  Campfire" aura - see [Campfire Detection](#campfire-detection-and-secret-value-safety)).
+  (`CS.Detection`'s at-fire boolean, which now checks both the
+  "Welcoming Campfire" aura and the permanent tutorial campfires' aura
+  - see [Campfire Detection](#campfire-detection-and-secret-value-safety)).
   No new aura or API needed; this is a reuse of existing infrastructure,
   not a new discovery.
 
@@ -237,11 +264,24 @@ from the reagent/bag-count comparison already resolved above).
 
 **Profession coverage, complete**: Jewelcrafting and Inscription were
 added in The Burning Crusade and Wrath of the Lich King respectively, so
-neither exists in Forever - the 11 professions with confirmed tier-1
-data (Fishing, Alchemy, Herbalism, Cooking, First Aid, Enchanting,
-Leatherworking, Engineering, Blacksmithing, Tailoring, Mining, plus
-Skinning/Camp Chair, confirmed) are the complete set, not a partial list
-awaiting two more. See `docs/research.txt` for the full table.
+neither exists in Forever. Of the remaining professions, **Cooking is
+excluded from this feature** - its tier-1 good (Basic Campfire Kit)
+isn't a campfire *extension* like every other profession's; it's what
+creates the initial campfire itself. Since this panel only ever shows
+when the player is already at a campfire (gated on `CS.Detection.atFire`),
+there's no reachable state where placing a Basic Campfire Kit from this
+panel would make sense - a campfire already exists in every case the
+panel can be open. The 11 goods this feature supports are: Fishing,
+Alchemy, Herbalism, First Aid, Enchanting, Leatherworking, Engineering,
+Blacksmithing, Tailoring, Mining, and Skinning. See `docs/research.txt`
+for the full item/spell ID table.
+
+**Future scope, noted but not part of this feature**: Cooking's Basic
+Campfire Kit, plus the `CraftRecipe`/secure-item-use mechanics this
+feature establishes, could support a separate feature later - a
+standalone UI or keybind for crafting/placing the *initial* campfire
+itself, independent of (and necessarily outside) this at-a-campfire-only
+panel.
 
 No open questions remain from this research pass - the feature is fully
 specified down to real item/spell IDs, the API calls needed for each

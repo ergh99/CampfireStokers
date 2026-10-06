@@ -18,11 +18,14 @@ end
 -- diagnostic command, so those three checks are manual/instructional only.
 local SELF_TESTS = {
     {
-        name = "campfire aura spell ID",
+        name = "campfire aura spell IDs",
         run = function()
             return "pass", string.format(
-                "CAMPFIRE_SPELL_ID is %d, confirmed in-client 2026-09-30 (see docs/decision-log.md).",
-                CS.Detection.CAMPFIRE_SPELL_ID
+                "CAMPFIRE_SPELL_ID is %d (confirmed in-client 2026-09-30) and "
+                    .. "TUTORIAL_CAMPFIRE_SPELL_ID is %d (the permanent starting-zone "
+                    .. "tutorial campfires use a different aura) - see docs/decision-log.md.",
+                CS.Detection.CAMPFIRE_SPELL_ID,
+                CS.Detection.TUTORIAL_CAMPFIRE_SPELL_ID
             )
         end,
     },

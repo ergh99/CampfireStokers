@@ -34,10 +34,25 @@ local function makeOptionsStub()
     return options
 end
 
+-- Same reasoning again: CS.Professions.CreateEventFrame's real
+-- implementation registers a real event via CreateFrame, already
+-- covered by professions_spec.lua. Core.lua is only responsible for
+-- calling it once at load, which is all this stub verifies.
+local function makeProfessionsStub()
+    local professions = { createEventFrameCalls = 0, warmItemCacheCalls = 0 }
+    professions.CreateEventFrame = function()
+        professions.createEventFrameCalls = professions.createEventFrameCalls + 1
+    end
+    professions.WarmItemCache = function()
+        professions.warmItemCacheCalls = professions.warmItemCacheCalls + 1
+    end
+    return professions
+end
+
 local function loadCoreWithDependencies()
     local capturedFrame
 
-    local CS = { UI = makeUIStub(), Options = makeOptionsStub() }
+    local CS = { UI = makeUIStub(), Options = makeOptionsStub(), Professions = makeProfessionsStub() }
     loadModule("Data.lua", "CampfireStokers", CS)
     loadModule("Tree.lua", "CampfireStokers", CS)
     loadModule("Send.lua", "CampfireStokers", CS)
@@ -87,6 +102,10 @@ tests["ADDON_LOADED for this addon bootstraps CampfireStokersDB and wires Detect
     assert(#_G.CampfireStokersDB.tree == 5, "bootstrap should have deep-copied DefaultTree in")
     assert(CS.UI.createPanelCalls == 1, "Core.lua must create the panel exactly once on load")
     assert(CS.Options.createCanvasCalls == 1, "Core.lua must create the options canvas exactly once on load")
+    assert(CS.Professions.createEventFrameCalls == 1,
+        "Core.lua must create the professions event frame exactly once on load")
+    assert(CS.Professions.warmItemCacheCalls == 1,
+        "Core.lua must warm the profession item cache exactly once on load")
     assert(CS.Detection.atFire == false, "no aura mocked, so the initial Refresh should leave it false")
 
     CS.Detection.Simulate(true)

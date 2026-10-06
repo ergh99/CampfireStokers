@@ -6,6 +6,14 @@ CS.Detection = CS.Detection or {}
 -- Confirmed in-client during T6 (2026-09-30); see docs/decision-log.md.
 CS.Detection.CAMPFIRE_SPELL_ID = 1229739
 
+-- The permanent tutorial campfires in starting zones apply a different
+-- aura than the one above - without also checking this id, sitting at
+-- one of these would never register as "at a campfire" at all. See
+-- docs/decision-log.md.
+CS.Detection.TUTORIAL_CAMPFIRE_SPELL_ID = 1289723
+
+CS.Detection.CAMPFIRE_SPELL_IDS = { CS.Detection.CAMPFIRE_SPELL_ID, CS.Detection.TUTORIAL_CAMPFIRE_SPELL_ID }
+
 CS.Detection.atFire = false
 
 local stateChangedCallbacks = {}
@@ -31,10 +39,16 @@ end
 --   getPlayerAuraBySpellID(id)   defaults to C_UnitAuras.GetPlayerAuraBySpellID
 --                                (already player-only; takes no unit arg)
 --   canAccessValue(value)        defaults to canaccessvalue
---   spellId                      defaults to CS.Detection.CAMPFIRE_SPELL_ID
+--   spellIds                     defaults to CS.Detection.CAMPFIRE_SPELL_IDS
 -- Ask-then-read-then-check-readability, in that order, per AGENTS.md's
 -- secret-value rules: skip the read entirely while auras are secret, and
--- never branch on the aura result before canAccessValue confirms it's safe.
+-- never branch on an aura result before canAccessValue confirms it's
+-- safe. ShouldAurasBeSecret is asked once, up front, covering every id
+-- checked below - it's a blanket restriction on reading auras at all
+-- this frame, not a per-aura one. Each id is otherwise independent: an
+-- unreadable or nil result for one doesn't mean the next one is also
+-- absent, so the loop keeps checking rather than bailing out on the
+-- first miss - the player only needs to be at ONE kind of campfire.
 function CS.Detection.EvaluateState(options)
     options = options or {}
 
@@ -43,7 +57,7 @@ function CS.Detection.EvaluateState(options)
     local getPlayerAuraBySpellID = options.getPlayerAuraBySpellID
         or (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID)
     local canAccessValue = options.canAccessValue or canaccessvalue
-    local spellId = options.spellId or CS.Detection.CAMPFIRE_SPELL_ID
+    local spellIds = options.spellIds or CS.Detection.CAMPFIRE_SPELL_IDS
 
     if shouldAurasBeSecret and shouldAurasBeSecret() then
         return false
@@ -53,13 +67,14 @@ function CS.Detection.EvaluateState(options)
         return false
     end
 
-    local aura = getPlayerAuraBySpellID(spellId)
-
-    if canAccessValue and not canAccessValue(aura) then
-        return false
+    for _, spellId in ipairs(spellIds) do
+        local aura = getPlayerAuraBySpellID(spellId)
+        if (not canAccessValue or canAccessValue(aura)) and aura ~= nil then
+            return true
+        end
     end
 
-    return aura ~= nil
+    return false
 end
 
 function CS.Detection.Refresh(options)

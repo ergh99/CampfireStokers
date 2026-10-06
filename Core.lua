@@ -18,4 +18,6 @@ frame:SetScript("OnEvent", function(_, event, loadedAddonName)
 
     CS.Detection.CreateEventFrame()
     CS.Detection.Refresh()
+    CS.Professions.CreateEventFrame()
+    CS.Professions.WarmItemCache()
 end)

@@ -17,7 +17,7 @@ tests["EvaluateState is false while auras are secret, without reading one"] = fu
         shouldAurasBeSecret = function() return true end,
         getPlayerAuraBySpellID = function() readCalled = true end,
         canAccessValue = function() return true end,
-        spellId = 12345,
+        spellIds = { 12345 },
     })
     assert(atFire == false)
     assert(readCalled == false, "the aura must never be read while auras are secret")
@@ -32,7 +32,7 @@ tests["EvaluateState is true when the aura is readable and present"] = function(
             return { spellId = 12345 }
         end,
         canAccessValue = function() return true end,
-        spellId = 12345,
+        spellIds = { 12345 },
     })
     assert(atFire == true)
 end
@@ -43,7 +43,7 @@ tests["EvaluateState is false when the aura is readable but nil"] = function()
         shouldAurasBeSecret = function() return false end,
         getPlayerAuraBySpellID = function() return nil end,
         canAccessValue = function() return true end,
-        spellId = 12345,
+        spellIds = { 12345 },
     })
     assert(atFire == false)
 end
@@ -54,9 +54,54 @@ tests["EvaluateState is false when canAccessValue reports the result unreadable"
         shouldAurasBeSecret = function() return false end,
         getPlayerAuraBySpellID = function() return { spellId = 12345 } end,
         canAccessValue = function() return false end,
-        spellId = 12345,
+        spellIds = { 12345 },
     })
     assert(atFire == false, "an unreadable result must count as no campfire aura")
+end
+
+tests["EvaluateState's default spellIds check the welcoming aura before the tutorial one"] = function()
+    local CS = loadDetection()
+    local checked = {}
+    CS.Detection.EvaluateState({
+        shouldAurasBeSecret = function() return false end,
+        getPlayerAuraBySpellID = function(id)
+            table.insert(checked, id)
+            return nil
+        end,
+        canAccessValue = function() return true end,
+    })
+    assert(checked[1] == CS.Detection.CAMPFIRE_SPELL_ID)
+    assert(checked[2] == CS.Detection.TUTORIAL_CAMPFIRE_SPELL_ID)
+end
+
+tests["EvaluateState is true when only the tutorial campfire aura is present"] = function()
+    local CS = loadDetection()
+    local atFire = CS.Detection.EvaluateState({
+        shouldAurasBeSecret = function() return false end,
+        getPlayerAuraBySpellID = function(id)
+            if id == CS.Detection.TUTORIAL_CAMPFIRE_SPELL_ID then
+                return { spellId = id }
+            end
+            return nil
+        end,
+        canAccessValue = function() return true end,
+    })
+    assert(atFire == true, "the permanent tutorial campfires' aura must also count as at-fire")
+end
+
+tests["EvaluateState keeps checking later ids when an earlier one is unreadable"] = function()
+    local CS = loadDetection()
+    local atFire = CS.Detection.EvaluateState({
+        shouldAurasBeSecret = function() return false end,
+        getPlayerAuraBySpellID = function(id)
+            return { spellId = id } -- present for every id checked
+        end,
+        canAccessValue = function(aura)
+            return aura.spellId ~= 111 -- the first id checked is unreadable
+        end,
+        spellIds = { 111, 222 },
+    })
+    assert(atFire == true, "an unreadable first id must not block checking the next one")
 end
 
 -- Refresh / callbacks
@@ -72,7 +117,7 @@ tests["Refresh announces a state change to registered callbacks"] = function()
         shouldAurasBeSecret = function() return false end,
         getPlayerAuraBySpellID = function() return { spellId = 1 } end,
         canAccessValue = function() return true end,
-        spellId = 1,
+        spellIds = { 1 },
     })
 
     assert(#seen == 1 and seen[1] == true)

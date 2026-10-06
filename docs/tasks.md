@@ -154,22 +154,30 @@ infrastructure; adds to them, doesn't replace them).
       UI interaction). This risk was mislabeled: crafting turned out to be
       the easy part. The real architectural risk, discovered in the same
       session, is using/placing the crafted item - see the new item below.
-- [ ] In-client discovery: `C_Item.UseItemByName` (the "use/place the
+- [x] In-client discovery: `C_Item.UseItemByName` (the "use/place the
       item" step) cannot be called from ordinary insecure Lua at all -
       confirmed 2026-10-02, it throws citing `SecureActionButtonTemplate`,
-      even from inside a plain `Button`'s `OnClick`. Build and verify a
-      `SecureActionButtonTemplate`-based button (`SetAttribute("type",
-      "item")`, `SetAttribute("item", <name or itemLink>)`) before the
-      panel's "use" button design locks in - this is the same mechanism
-      action bars use, and still one click from the player's perspective,
-      but it can't be a plain Button + OnClick like the rest of this
-      add-on's UI.
+      even from inside a plain `Button`'s `OnClick`. Confirmed working
+      2026-10-04 via a temporary `SecureButtonTest.lua` smoke test (now
+      removed): a `SecureActionButtonTemplate` button toggled between
+      `SetAttribute("type","item")`/`SetAttribute("item", itemName)`
+      (use) and cleared attributes + ordinary `PreClick` logic
+      (craft/request) works correctly with no taint, and caught a real
+      bug before it shipped (`RegisterForClicks("AnyUp","AnyDown")`
+      double-firing `PreClick` per click - fixed to `"AnyUp"` only).
+      Implemented in `UI.lua`'s `createProfessionButton`/
+      `layoutProfessionBlock`.
 - [x] In-client discovery: confirmed 2026-10-02. Reagent item IDs are
       reachable via `GetRecipeSchematic(recipeSpellID,
-      false).reagentSlotSchematics[n].reagents[1].itemID`; the yes/no
-      "can craft right now" gate is `GetCraftableCount(recipeSpellID)`,
-      confirmed to do real reagent-ratio math - no manual bag-count
-      comparison needed for that part.
+      false).reagentSlotSchematics[n].reagents[1].itemID`. **Corrected
+      during implementation**: `GetCraftableCount(recipeSpellID)`
+      looked like the yes/no "can craft right now" gate, but returned
+      `0` for two recipes (Blacksmithing, Mining) while the character
+      held 46x/62x of the only two reagents required (1 each) - it can
+      be `0` for reasons unrelated to materials. The real gate is
+      walking the schematic against `C_Item.GetItemCount` directly (the
+      same walk already needed to build the missing-materials list);
+      `GetCraftableCount` isn't used at all.
 - [x] Proximity: resolved 2026-10-02 as a design decision, not an
       in-client discovery - the crafted good enforces being at a
       campfire itself, but the panel should not rely on that alone. Gate
@@ -205,21 +213,43 @@ infrastructure; adds to them, doesn't replace them).
       Jewelcrafting and Inscription don't exist in Forever (added in TBC
       and Wrath respectively), so these 11 professions are the full set,
       not a partial list - no further profession discovery needed.
-- [ ] Profession detection: identify which professions (primary and
-      secondary) the player's current character knows, and at what skill
-      level, via whatever API the discovery step above confirms.
-- [ ] The campfire panel shows one button per profession-crafted good the
-      character could plausibly use (skill >= 20), determined dynamically,
-      not from a hardcoded list.
-- [ ] Clicking a button, with no confirmation dialog at any step, matching
+- [x] Profession detection: superseded by a simpler design, confirmed
+      2026-10-04 - `GetProfessions()`/`GetProfessionInfo()` are never
+      called at all. Since the 11 goods are a fixed, known list (not
+      open-ended discovery), `C_TradeSkillUI.IsRecipeProfessionLearned(
+      recipeSpellId)` gates each one directly and was confirmed live to
+      correctly distinguish a known profession (Skinning, `true`) from
+      an unknown one (Alchemy, `false`) on the same character -
+      `GetRecipeInfo`'s `craftable` field, tried first, turned out to
+      return `true` regardless of whether the profession is known at
+      all, so it couldn't be used for this. Implemented in
+      `Professions.lua`'s `EvaluateGood`.
+- [x] The campfire panel shows one button per profession-crafted good the
+      character could plausibly use (skill >= 20), determined
+      dynamically, not from a hardcoded list. Implemented: `UI.lua`'s
+      `layoutProfessionBlock` lays out label-less icon buttons (one per
+      `CS.Professions.GOODS` entry) in a wrapped grid, visible only
+      when `EvaluateGood` says so.
+- [x] Clicking a button, with no confirmation dialog at any step, matching
       this add-on's existing one-click philosophy: uses the item from bags
-      if present; otherwise attempts a silent craft if materials are
-      present; otherwise yells a request for the missing materials.
+      if present; otherwise attempts to craft if materials are present
+      (confirmed 2026-10-05: not literally silent - requires briefly
+      opening and immediately closing the real crafting frame via
+      `C_TradeSkillUI.OpenRecipe`, since a bare `CraftRecipe` call does
+      nothing at all without it; still one click, just not a truly
+      silent API call); otherwise yells a request for the missing
+      materials.
       Confirmed 2026-10-02: message structure is "I can place a/an
       &lt;item link&gt; at the campfire if someone wants to provide
       &lt;list of missing materials&gt;," with the item link and the
-      missing-materials list both generated dynamically.
-- [ ] Unit tests for whatever pure logic this produces (e.g. a
+      missing-materials list both generated dynamically. Implemented in
+      `Professions.lua` (`EvaluateGood`, `BuildRequestMessage`, `Craft`)
+      and wired into `UI.lua`'s secure-button `PreClick` handler.
+- [x] Unit tests for whatever pure logic this produces (e.g. a
       Classify-style function deciding use/craft/request from bag-count
       inputs), following this project's established pattern of separating
-      pure decision logic from the real API calls around it.
+      pure decision logic from the real API calls around it. Implemented
+      in `tests/professions_spec.lua` (`GOODS`, `ResolveEntry`,
+      `EvaluateGood`, `BuildRequestMessage` via dependency injection,
+      `Craft`/`CreateEventFrame` via the same monkey-patch/fake-frame
+      patterns `send_spec.lua`/`detection_spec.lua` already use).

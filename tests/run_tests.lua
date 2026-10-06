@@ -9,6 +9,7 @@ local SPEC_FILES = {
     "tree_spec",
     "send_spec",
     "detection_spec",
+    "professions_spec",
     "core_spec",
     "launcher_spec",
     "options_spec",

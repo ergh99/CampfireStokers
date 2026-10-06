@@ -7,7 +7,7 @@ local function loadLauncher()
     wowStub.install()
     local CS = {
         Data = { L = { ui_selftest_title = "Campfire Stokers Self-Test" } },
-        Detection = { CAMPFIRE_SPELL_ID = 0, Simulate = function() end },
+        Detection = { CAMPFIRE_SPELL_ID = 0, TUTORIAL_CAMPFIRE_SPELL_ID = 0, Simulate = function() end },
         UI = { Toggle = function() end, ShowTextPopup = function() end },
     }
     -- The real module, not a stub: the "emote command globals" selftest

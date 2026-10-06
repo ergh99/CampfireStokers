@@ -767,3 +767,251 @@ reports `flavour: "forever"`, `filesScanned: 8` (the real module count),
 not just a simplification, since `.` now tracks the TOC's file list
 automatically (a new module no longer needs a separate manual `path`
 update, closing that sharp edge from T1).
+
+## 2026-10-04 — Profession campfire goods implemented
+
+Built the feature against the fully-resolved plan (see the research
+entries above). New `Professions.lua`, loaded between `Detection.lua`
+and `UI.lua`: `GOODS` (11 entries, Tailoring's Faction Banner carrying
+faction-variant ids), `ResolveEntry`, `EvaluateGood` (pure, DI-based,
+mirroring `Detection.EvaluateState`/`Send.Classify`), `BuildRequestMessage`,
+`Craft`, and `CreateEventFrame`. `UI.lua` gained 11 fixed
+`SecureActionButtonTemplate` buttons (not pooled, unlike phrase rows -
+each permanently bound to one profession's item), laid out as a
+label-less icon grid (`layoutProfessionBlock`) with a colored border per
+state (use/craft/request) and a tooltip carrying the item name and
+reason, combat-lockdown-deferred the same way real action-bar addons
+handle it. `Core.lua` gained one line wiring `CS.Professions.CreateEventFrame()`.
+`Data.lua` gained the 11 item-name strings plus two tooltip-suffix
+strings. `docs/definition.md`'s stale "Profession coverage" paragraph
+(which still named Cooking among the 11, the exact inconsistency flagged
+during planning) is fixed, with the Cooking-exclusion rationale and the
+future-scope note (a separate standalone UI/keybind for placing the
+*initial* campfire) written down. `docs/tasks.md`'s remaining unchecked
+implementation items in this milestone are now checked off, including
+retiring the never-built "profession detection via GetProfessions"
+item in favor of the simpler, already-confirmed `IsRecipeProfessionLearned`
+per-recipe gate.
+
+New `tests/professions_spec.lua` (15 tests) follows the project's
+established DI-fake pattern for the pure functions and the
+monkey-patch/fake-frame pattern for the two impure ones; `core_spec.lua`
+gained a `CS.Professions.CreateEventFrame` call-count assertion, same
+shape as the existing UI/Options stubs. Verified clean: syntax, `luacheck .`
+(0 warnings across 21 files), all 96 tests (81 existing + 15 new), and
+`wow-secret-lint@1.9.0 . --strict` (`filesScanned: 9`, 0 findings - the
+new module was picked up automatically, confirming the CI fix from
+earlier today works end to end for a real new file, not just
+retroactively).
+
+**Still manual-only, not yet done**: the actual in-client pass this
+project's testing philosophy always reserves for real frame-tree code -
+does the panel actually show the right buttons for a real character's
+real professions, do the icons/borders/tooltips look right, does
+clicking really use/craft/yell correctly end to end. The secure-button
+*mechanic* itself was already smoke-tested in isolation during planning
+(see the 2026-10-04 entries above); what's unverified now is the real
+feature built on top of it, not the mechanism.
+
+## 2026-10-05 — First real in-client pass surfaces four bugs, three fixed
+
+The manual pass flagged above happened, and found real problems - worth
+recording in detail since one of them (`GetCraftableCount`) reverses a
+signal this feature's design had relied on since the original research
+pass.
+
+1. **Sizing/padding.** Icons were too small and the block had no real
+   margin (padding literally hardcoded to `4` on one side only).
+   `PROFESSION_ICON_SIZE` doubled 32 -> 64, and three new constants
+   (`PROFESSION_BLOCK_SIDE_PADDING`/`TOP_GAP`/`BOTTOM_GAP`, all 8px) give
+   the block proper breathing room on every side.
+2. **Profession buttons could vanish permanently.** `layoutProfessionBlock`
+   had no error handling around each entry's `EvaluateGood` call. Under
+   rapid aura drop/reapply (the campfire aura is known to flap while the
+   player sits still, see the auto-close grace-period work earlier in
+   this log), a single entry throwing would abort the whole loop
+   mid-iteration, leaving every button after the failure point stuck in
+   whatever Show/Hide state it had - and since nothing retried, they
+   stayed hidden indefinitely. Fixed: each entry's evaluation is now
+   `pcall`-wrapped (`evaluateGoodSafely`); a thrown error is reported to
+   chat (not silently swallowed) and treated as "not visible" for just
+   that one entry, not the whole block.
+3. **Request message showed plain text, not a link, for the main
+   item - and missing reagents showed as a raw `"item <id>"` fallback.**
+   Both trace to the same root cause: `C_Item.GetItemInfo` and
+   `C_Item.GetItemNameByID` both depend on the client's async item-data
+   cache and return nil/incomplete data until an item has been "seen."
+   `GetItemNameByID` was wrongly assumed to be a lighter, always-synchronous
+   lookup - it isn't, confirmed live (an uncached reagent produced
+   exactly the `"item <id>"` fallback). Fixed by consolidating onto one
+   API: `BuildRequestMessage` now uses `C_Item.GetItemInfo` for both the
+   main item (its 2nd return, the link) and every missing reagent's name
+   (1st return), so there's one cache behavior to account for, not two.
+   Added `CS.Professions.WarmItemCache()`, called once at `ADDON_LOADED`,
+   that proactively touches every good's item id *and* every learned
+   recipe's reagent item ids, to start that fetch early instead of at
+   first use. This narrows the race substantially but can't fully close
+   it for an item referenced in the first moments after login.
+4. **`GetCraftableCount` returned `0` while materials were abundant -
+   and `missing` correctly came back empty, which is what actually
+   exposed the bug.** Diagnostic: `GetRecipeSchematic` confirmed both
+   Blacksmithing's and Mining's recipes need exactly 1 of two reagents
+   (Rough Stone, Copper Bar); the character held 46 and 62 respectively.
+   `GetCraftableCount` nonetheless returned `0` for both - it can be
+   zero for reasons that have nothing to do with missing materials (a
+   cooldown or similar, not yet identified). **This retracts
+   `GetCraftableCount` as a signal entirely** - the original research
+   pass treated it as confirmed reliable (real reagent-ratio math, 14
+   against 14/17 reagents), which was true for that one test case but
+   didn't generalize. `EvaluateGood` no longer calls it at all: the
+   schematic-vs-bag-count walk (already needed to build the
+   missing-materials list) is now the *only* signal for craft-vs-request
+   - if that walk finds nothing missing, the action is "craft," full
+   stop, regardless of what `GetCraftableCount` would have said.
+   `definition.md` and `tasks.md` corrected to match; `docs/research.txt`
+   is left as-is (a historical log of what was tested, not a live spec).
+
+## 2026-10-05 — Second in-client pass: two more fixes
+
+5. **Location was wrong in a different way than the sizing fix
+   addressed.** The profession block sat between the Say/Yell toggle
+   and the phrase tree it actually controls - confusing, since
+   profession goods always yell regardless of that toggle, so having
+   them visually sandwiched inside the Say/Yell-to-phrases relationship
+   implied a connection that doesn't exist. Fixed by moving the block
+   above Say/Yell instead: Title -> profession block (if any) -> Say/Yell
+   -> phrase tree. This required making Say/Yell's position dynamic
+   (previously fixed via a static `SetPoint` in `CreatePanel`, now
+   repositioned every `Refresh()` based on the profession block's
+   current height, same pattern the phrase tree already used). New
+   constants `TITLE_AREA_HEIGHT`/`SAY_YELL_HEIGHT`/`SAY_YELL_BOTTOM_GAP`
+   replace the old fixed `TOP_CONTROLS_HEIGHT`.
+6. **Broadcasting a raw item id in a public yell is not acceptable**,
+   confirmed as a real production concern, not a cosmetic one - unlike
+   the main item (whose `entry.itemName` is a string this add-on
+   already controls and trusts as a fallback), a missing reagent's name
+   comes only from the API, with no safe fallback string of our own.
+   `BuildRequestMessage` now returns `nil` - not a message containing
+   `"item <id>"` - if any missing reagent's name can't be resolved;
+   the `PreClick` handler checks for `nil` and reports locally
+   (`CS.Data.L.pg_request_not_ready`) instead of ever sending.
+
+Verified clean after all six fixes: syntax, `luacheck .` (0 warnings),
+all 102 tests, and `wow-secret-lint@1.9.0` (`filesScanned: 9`,
+0 findings).
+
+**Resolved, same day**: `GetCraftableCount` returns `0` unless the
+TradeSkillUI panel is actually open to the corresponding profession -
+it's UI-state-dependent, not a pure data query. This retroactively
+confirms dropping it was correct, not just a workaround: this add-on
+never opens the tradeskill panel at all (the entire point of "fully
+silent" crafting), so `GetCraftableCount` could never have returned a
+meaningful value here regardless of materials. Worth remembering if a
+future feature ever wants a direct "will this craft succeed" check -
+it would need the panel open first, which defeats the silent-crafting
+premise this feature depends on.
+
+The in-client pass otherwise continues - item-link/tooltip/sizing fixes
+above are unverified live until re-tested.
+
+## 2026-10-05 — Second campfire aura: permanent tutorial campfires
+
+A real gap in the base detection logic, not specific to the profession
+feature: the permanent, non-despawning campfires that are part of the
+starting-zone campfire tutorials apply a different aura
+(`1289723`) than the regular "Welcoming Campfire" aura (`1229739`)
+`Detection.lua` has always checked. Since `EvaluateState` only ever
+checked one spell ID, sitting at one of these tutorial campfires would
+never have registered as "at a campfire" at all - this add-on's entire
+premise (the panel opens because you're at a fire) would have silently
+failed for every player at one of these specific campfires.
+
+Fixed: `CS.Detection.CAMPFIRE_SPELL_IDS` is now a list (both ids), and
+`EvaluateState` loops over it - the player counts as at-fire if *either*
+aura is present. The existing secret-value discipline is preserved
+exactly: `ShouldAurasBeSecret` is still asked once, up front, covering
+both reads (it's a blanket restriction on reading auras at all this
+frame, not a per-aura one); each id is still read one at a time, by
+spell ID only, never by index/slot/instance id; `canAccessValue` still
+gates every read before anything touches the result. The one behavioral
+change: an unreadable or nil result for one id no longer short-circuits
+the whole evaluation to `false` - it just means "try the next id," since
+an unreadable result for the *first* aura says nothing about whether
+the *second* one is present. Only after every id comes back
+absent/unreadable does the player count as not at a campfire.
+
+`Launcher.lua`'s "campfire aura spell IDs" self-test now reports both
+constants. `docs/definition.md`'s Campfire Detection section and the
+profession feature's proximity note are updated to describe checking
+two auras, not one. `tests/detection_spec.lua` gained three new tests
+(the real default list order, the tutorial aura alone being sufficient,
+and an unreadable first id not blocking a readable second one);
+`tests/launcher_spec.lua`'s `Detection` stub gained the second constant
+so the renamed self-test's `string.format` call doesn't error on a
+missing field. Verified clean: syntax, `luacheck .` (0 warnings), all
+105 tests (up from 102), and `wow-secret-lint@1.9.0` (0 errors/0
+warnings).
+
+## 2026-10-05 — CraftRecipe actually requires the real crafting frame
+
+Third in-client pass surfaced a reagent-link gap and a genuinely
+significant correction to how crafting works.
+
+**Reagent links.** The missing-materials list was built from
+`C_Item.GetItemInfo`'s name-only return, never its link - an earlier
+design choice, not a caching bug (an earlier round had misdiagnosed
+this exact report as the *main* item's link being broken; it wasn't -
+the main item's link worked the whole time, confirmed by testing the
+wrong item ids). Fixed: each missing reagent now prefers its link over
+its plain name too, falling back to name only if no link is available,
+still refusing to send anything (`nil`) if neither resolves - the
+"never leak a raw item id" rule from the previous round still holds.
+
+**`CraftRecipe` requires the real crafting frame to be open -
+confirmed definitively, not inferred.** The investigation, in order:
+
+1. Replaying the exact call sequence from the original successful
+   research pass (`GetRecipeInfo` -> `GetCraftableCount` ->
+   `GetRecipeSchematic` -> `CraftRecipe`) against Mining, panel closed,
+   produced `ok=true, err=nil` but zero actual effect - confirmed by
+   direct visual observation (no cast bar, no animation), the
+   sufficient signal per this pass's own methodology correction: either
+   a cast visibly begins or it doesn't, and checking bag counts
+   afterward adds nothing a null visual result hasn't already told you
+   (an unnecessary verification step this pass specifically called out
+   and that's now the standing approach for this kind of check).
+2. `C_TradeSkillUI.OpenTradeSkill(recipeSpellId)` produces no visible
+   effect of its own - ruled out as an invisible "prime the state"
+   shortcut, since calling it before `CraftRecipe` still produced
+   nothing.
+3. `C_TradeSkillUI.OpenRecipe(recipeSpellId)` **does** visibly open the
+   real crafting frame (`ProfessionsFrame`, confirmed via
+   `:IsShown()`), with the recipe pre-selected. With the frame open
+   this way, `CraftRecipe` then produces a real cast bar and animation.
+4. Hiding `ProfessionsFrame` immediately after calling `CraftRecipe` -
+   same synchronous sequence, no delay - does **not** interrupt the
+   cast; the bar and animation still play through to completion. This
+   matches ordinary WoW spell-cast behavior (a cast is tied to the
+   player's casting state, not any UI frame's visibility), not a
+   Forever-specific quirk.
+
+**Conclusion**: `C_TradeSkillUI.CraftRecipe` alone was never sufficient
+- the original research pass's "bag count 0 -> 1" success almost
+certainly happened with the frame already open from earlier manual
+testing in that same session, without that being noted at the time.
+The real, now-fully-confirmed mechanism is `OpenRecipe` ->
+`CraftRecipe` -> hide the frame, all synchronous, in `Professions.lua`'s
+`Craft` function. This isn't truly silent (the frame technically opens
+and closes, even if imperceptibly fast), but it is still fully
+automatic and one-click from the player's perspective, which is what
+the plan's scope decision called for. `definition.md` and `tasks.md`
+corrected to retract "crafting is not the hard part" / "fully silently,
+with no crafting-UI interaction," which were both accurate to what the
+original research found but didn't hold up under real testing.
+
+`Craft` gained DI parameters (`openRecipe`/`craftRecipe`/`hideFrame`)
+matching this codebase's existing pattern, rather than a bare global
+call, so the sequence is directly unit-testable. `ProfessionsFrame`
+added to `.luacheckrc`'s `read_globals`. Verified clean: syntax,
+`luacheck .` (0 warnings), all 107 tests (up from 105), and
+`wow-secret-lint@1.9.0` (0 errors/0 warnings).

@@ -12,13 +12,32 @@ local ROW_HEIGHT = 22
 local ROW_INDENT = 28
 local CATEGORY_GAP = 6
 local PANEL_WIDTH = 460
-local TOP_CONTROLS_HEIGHT = 66
 local HIGHLIGHT_DURATION = 0.15
+local PROFESSION_ICON_SIZE = 64
+local PROFESSION_ICON_GAP = 8
+local PROFESSION_BLOCK_SIDE_PADDING = 8
+local PROFESSION_BLOCK_TOP_GAP = 8
+local PROFESSION_BLOCK_BOTTOM_GAP = 8
+-- Title area, then the profession button block (if any), THEN Say/Yell,
+-- then the phrase tree - profession goods always yell regardless of the
+-- Say/Yell toggle, so they sit above it, not sandwiched between it and
+-- the phrases it actually controls (reported as confusing placement
+-- during in-client testing).
+local TITLE_AREA_HEIGHT = 34
+local SAY_YELL_HEIGHT = 20
+local SAY_YELL_BOTTOM_GAP = 10
+local CONTROLS_MIN_HEIGHT = TITLE_AREA_HEIGHT + SAY_YELL_HEIGHT + SAY_YELL_BOTTOM_GAP
 
 local frame
+local sayButton
+local yellButton
 local rowPool = {}
 local activeRows = {}
 local pendingHideTimer
+local professionButtons = {}
+local previousProfessionBlockHeight = 0
+local combatFlushFrame
+local professionBlockDirty = false
 
 CS.UI.isAutoOpened = false
 
@@ -129,6 +148,184 @@ local function hideRowTooltip()
     GameTooltip:Hide()
 end
 
+local function professionBorderColor(action)
+    if action == "use" then
+        return 0.3, 0.9, 0.3
+    elseif action == "craft" then
+        return 0.4, 0.6, 1
+    end
+    return 0.8, 0.55, 0.2
+end
+
+-- Creates one of the 11 fixed profession-good buttons, permanently bound
+-- to its own item - unlike acquireRow's pool, these are never recycled
+-- (a SecureActionButtonTemplate button's identity can't be reassigned
+-- the way a pooled row's label can). RegisterForClicks deliberately
+-- requests only "AnyUp": requesting "AnyDown" too was confirmed
+-- in-client to double-fire PreClick per physical click, which would
+-- double-craft or double-yell - see docs/decision-log.md.
+local function createProfessionButton(entry)
+    local button = CreateFrame("Button", "CampfireStokersProfessionButton" .. entry.id, frame,
+        "SecureActionButtonTemplate, BackdropTemplate")
+    button:SetSize(PROFESSION_ICON_SIZE, PROFESSION_ICON_SIZE)
+    button:RegisterForClicks("AnyUp")
+    button:SetBackdrop({
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        edgeSize = 10,
+    })
+
+    button.icon = button:CreateTexture(nil, "ARTWORK")
+    button.icon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
+    button.icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+
+    button:SetScript("OnEnter", showRowTooltip)
+    button:SetScript("OnLeave", hideRowTooltip)
+
+    -- PreClick, not OnClick, so this coexists with the secure click path:
+    -- when type/item are set (action == "use"), the secure click-through
+    -- handles the item use and pendingAction is nil, so this is a no-op;
+    -- when they're cleared (craft/request), this is the only logic that
+    -- runs. Confirmed in-client 2026-10-04 that both cases work with no
+    -- taint - see docs/decision-log.md.
+    button:SetScript("PreClick", function(self)
+        if self.pendingAction == "craft" then
+            CS.Professions.Craft(self.pendingRecipeSpellId)
+        elseif self.pendingAction == "request" then
+            local message = CS.Professions.BuildRequestMessage(
+                self.pendingEntry, self.pendingItemId, self.pendingMissing
+            )
+            if message then
+                CS.Send.Send(message, { sendMode = "YELL", report = print })
+            else
+                -- BuildRequestMessage returns nil rather than a message
+                -- with a raw item id in it when a reagent's name isn't
+                -- cached yet - never send that, just tell the player
+                -- locally and let them try again once it's warmed.
+                print("Campfire Stokers: " .. CS.Data.L.pg_request_not_ready)
+            end
+        end
+    end)
+
+    button:Hide()
+    return button
+end
+
+local function applyProfessionButtonState(button, result)
+    button.icon:SetTexture(result.icon)
+    button:SetBackdropBorderColor(professionBorderColor(result.action))
+
+    button.pendingAction = result.action
+    button.pendingRecipeSpellId = result.recipeSpellId
+    button.pendingItemId = result.itemId
+    button.pendingMissing = result.missing
+    button.pendingEntry = result.entry
+
+    if result.action == "use" then
+        button:SetAttribute("type", "item")
+        button:SetAttribute("item", result.itemName)
+        button.tooltipText = result.itemName
+    else
+        button:SetAttribute("type", nil)
+        if result.action == "craft" then
+            button.tooltipText = result.entry.itemName .. " - " .. CS.Data.L.pg_tooltip_craft
+        else
+            button.tooltipText = result.entry.itemName .. " - " .. CS.Data.L.pg_tooltip_request
+        end
+    end
+end
+
+-- All attribute/position/visibility changes for these buttons are
+-- protected on a secure-templated frame, so this whole step is skipped
+-- during combat (leaving the prior layout untouched, always safe) and
+-- queued for one flush on PLAYER_REGEN_ENABLED - the standard pattern
+-- real action-bar addons use.
+local function queueCombatFlush()
+    professionBlockDirty = true
+    if not combatFlushFrame then
+        combatFlushFrame = CreateFrame("Frame")
+        combatFlushFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        combatFlushFrame:SetScript("OnEvent", function()
+            if professionBlockDirty then
+                professionBlockDirty = false
+                CS.UI.Refresh()
+            end
+        end)
+    end
+end
+
+-- Lays out the visible subset of professionButtons as a wrapped icon
+-- grid starting at `startY`, and returns the block's total height (0 if
+-- nothing's visible). Label-less icon buttons with a tooltip, not a
+-- vertical list of text rows like the phrase tree - see the plan's
+-- "UI.lua integration" section.
+-- Evaluating one entry calls out to several real C_TradeSkillUI/C_Item
+-- APIs we don't fully control (and some, like IsRecipeProfessionLearned,
+-- were only ever tested against a stable state - not against rapid
+-- aura drop/reapply while the panel refreshes repeatedly). pcall-wrapped
+-- so one entry throwing doesn't abort the whole block and leave every
+-- button after it stuck in whatever Show/Hide state it had before the
+-- throw - reported from in-client testing: profession buttons could
+-- vanish and never come back after some number of aura flaps, which is
+-- exactly that failure mode. A caught error is reported (not silently
+-- swallowed) and treated as "not visible" for that entry.
+local function evaluateGoodSafely(entry)
+    if not CS.Detection.atFire then
+        return { visible = false }
+    end
+    local ok, result = pcall(CS.Professions.EvaluateGood, entry)
+    if not ok then
+        print("Campfire Stokers: profession good '" .. entry.id .. "' failed to evaluate: " .. tostring(result))
+        return { visible = false }
+    end
+    return result
+end
+
+local function layoutProfessionBlock(startY)
+    if InCombatLockdown() then
+        queueCombatFlush()
+        return previousProfessionBlockHeight
+    end
+
+    local availableWidth = PANEL_WIDTH - (2 * PROFESSION_BLOCK_SIDE_PADDING)
+    local columns = math.max(1, math.floor(availableWidth / (PROFESSION_ICON_SIZE + PROFESSION_ICON_GAP)))
+    local topY = startY - PROFESSION_BLOCK_TOP_GAP
+    local column, row = 0, 0
+
+    for _, entry in ipairs(CS.Professions.GOODS) do
+        local button = professionButtons[entry.id]
+        local result = evaluateGoodSafely(entry)
+
+        if result.visible then
+            local x = PROFESSION_BLOCK_SIDE_PADDING + column * (PROFESSION_ICON_SIZE + PROFESSION_ICON_GAP)
+            local y = topY - row * (PROFESSION_ICON_SIZE + PROFESSION_ICON_GAP)
+            button:ClearAllPoints()
+            button:SetPoint("TOPLEFT", frame, "TOPLEFT", x, y)
+            applyProfessionButtonState(button, result)
+            button:Show()
+
+            column = column + 1
+            if column >= columns then
+                column = 0
+                row = row + 1
+            end
+        else
+            button:Hide()
+            button:SetAttribute("type", nil)
+            button.pendingAction = nil
+        end
+    end
+
+    local rowsUsed = row + (column > 0 and 1 or 0)
+    if rowsUsed > 0 then
+        previousProfessionBlockHeight = PROFESSION_BLOCK_TOP_GAP
+            + (rowsUsed * PROFESSION_ICON_SIZE) + ((rowsUsed - 1) * PROFESSION_ICON_GAP)
+            + PROFESSION_BLOCK_BOTTOM_GAP
+    else
+        previousProfessionBlockHeight = 0
+    end
+    return previousProfessionBlockHeight
+end
+
 -- Applies enabled/disabled + color + tooltip to one phrase row from its
 -- already-set .sendable/.needsTarget/.classifyReason, without recomputing
 -- Classify. Shared by Refresh (which sets those) and the
@@ -171,7 +368,15 @@ function CS.UI.Refresh()
 
     releaseRows()
 
-    local y = -TOP_CONTROLS_HEIGHT
+    local y = -TITLE_AREA_HEIGHT
+    y = y - layoutProfessionBlock(y)
+
+    sayButton:ClearAllPoints()
+    sayButton:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, y)
+    yellButton:ClearAllPoints()
+    yellButton:SetPoint("LEFT", sayButton, "RIGHT", 4, 0)
+    y = y - SAY_YELL_HEIGHT - SAY_YELL_BOTTOM_GAP
+
     for categoryIndex, category in ipairs(CampfireStokersDB.tree) do
         if categoryIndex > 1 then
             y = y - CATEGORY_GAP
@@ -224,7 +429,7 @@ function CS.UI.Refresh()
         end
     end
 
-    frame:SetHeight(math.max(-y + 8, TOP_CONTROLS_HEIGHT + ROW_HEIGHT))
+    frame:SetHeight(math.max(-y + 8, CONTROLS_MIN_HEIGHT + ROW_HEIGHT))
 end
 
 function CS.UI.Show()
@@ -256,6 +461,12 @@ function CS.UI.Toggle()
     end
 end
 
+-- Lets CS.Professions's live-refresh event frame skip rebuilding the
+-- panel while it's hidden.
+function CS.UI.IsPanelShown()
+    return frame ~= nil and frame:IsShown()
+end
+
 -- Registered with CS.Detection as the state-changed callback. Auto-open
 -- mirrors aura detection directly, with no delay or cooldown. Leaving the
 -- fire (which also covers "auras just became restricted," since Detection
@@ -267,6 +478,7 @@ function CS.UI.OnCampfireStateChanged(atFire)
     if not frame then
         return
     end
+    CS.UI.Refresh() -- the profession block's visibility is gated on atFire too
     if atFire then
         cancelPendingHide()
         if not frame:IsShown() then
@@ -476,15 +688,17 @@ function CS.UI.PromptForText(config)
 end
 
 -- Creates the panel frame. Called once, from Core.lua's ADDON_LOADED
--- handler, after CampfireStokersDB has been bootstrapped. Uses no secure
--- templates: every click just calls an ordinary Lua function
--- (CS.Send.Send / CS.Tree operations), nothing protected.
+-- handler, after CampfireStokersDB has been bootstrapped. Every phrase
+-- row calls an ordinary Lua function (CS.Send.Send / CS.Tree
+-- operations), nothing protected - the 11 profession-good buttons are
+-- the one exception, built with SecureActionButtonTemplate (see
+-- createProfessionButton above and docs/decision-log.md).
 function CS.UI.CreatePanel()
     CampfireStokersDB.collapsedCategories = CampfireStokersDB.collapsedCategories or {}
     CampfireStokersDB.sendMode = CampfireStokersDB.sendMode or "SAY"
 
     frame = CreateFrame("Frame", "CampfireStokersPanel", UIParent, "BackdropTemplate")
-    frame:SetSize(PANEL_WIDTH, TOP_CONTROLS_HEIGHT + ROW_HEIGHT)
+    frame:SetSize(PANEL_WIDTH, CONTROLS_MIN_HEIGHT + ROW_HEIGHT)
     frame:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
@@ -530,14 +744,14 @@ function CS.UI.CreatePanel()
     -- whose own label mutates - a single toggle button is ambiguous about
     -- whether its current label names the active mode or the mode a click
     -- would switch to.
-    local sayButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    sayButton:SetSize(44, 20)
-    sayButton:SetPoint("TOPLEFT", titleText, "BOTTOMLEFT", 0, -10)
+    -- Position is set dynamically in Refresh() (below the profession
+    -- block, which can be zero height), not fixed here.
+    sayButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    sayButton:SetSize(44, SAY_YELL_HEIGHT)
     sayButton:SetText(CS.Data.L.ui_say)
 
-    local yellButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    yellButton:SetSize(44, 20)
-    yellButton:SetPoint("LEFT", sayButton, "RIGHT", 4, 0)
+    yellButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    yellButton:SetSize(44, SAY_YELL_HEIGHT)
     yellButton:SetText(CS.Data.L.ui_yell)
 
     local function refreshSendModeButtons()
@@ -568,6 +782,10 @@ function CS.UI.CreatePanel()
             refreshTargetGating()
         end
     end)
+
+    for _, entry in ipairs(CS.Professions.GOODS) do
+        professionButtons[entry.id] = createProfessionButton(entry)
+    end
 
     frame:Hide()
     CS.UI.Refresh()

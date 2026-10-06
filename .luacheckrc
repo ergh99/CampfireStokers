@@ -32,6 +32,12 @@ globals = {
     "SlashCmdList.CAMPFIRESTOKERS",
     "StaticPopupDialogs.CAMPFIRESTOKERS_RESET_CONFIRM",
     "StaticPopupDialogs.CAMPFIRESTOKERS_DELETE_CATEGORY_CONFIRM",
+
+    -- TEMPORARY, see CraftSwitchTest.lua's header comment. Remove
+    -- these two lines along with that file once the profession-switch
+    -- investigation concludes.
+    "SLASH_CAMPFIRESTOKERSCRAFTSWITCHTEST1",
+    "SlashCmdList.CAMPFIRESTOKERSCRAFTSWITCHTEST",
 }
 
 -- WoW API globals this addon reads, added one at a time as modules start
@@ -71,6 +77,13 @@ read_globals = {
     "StaticPopup_Show",
     "Settings",
     "GetCursorPosition",
+
+    -- Professions.lua
+    "C_TradeSkillUI",
+    "C_Item",
+    "InCombatLockdown",
+    "UnitFactionGroup",
+    "ProfessionsFrame",
 }
 
 -- tests/ mocks real WoW API globals by assigning directly over them (e.g.
@@ -80,5 +93,5 @@ read_globals = {
 -- production code, so it's only loosened for this one global, in this one
 -- directory, not everywhere.
 files["tests/**/*.lua"] = {
-    globals = { "SendChatMessage", "DoEmote" },
+    globals = { "SendChatMessage", "DoEmote", "C_TradeSkillUI" },
 }
