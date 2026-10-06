@@ -139,12 +139,11 @@ button attempts, in order, with no confirmation dialog at any step
 1. **Use.** If the consumable is already in the player's bags, use/place
    it immediately.
 2. **Craft.** If not, attempt to craft it, assuming the required
-   materials are present. **Not literally silent** (confirmed during
-   implementation - see "Confirmed via in-client research" below): the
-   real crafting frame must flash open and immediately closed again for
-   `CraftRecipe` to actually work, rather than the fully invisible call
-   this was originally expected to be. Still one click and no manual
-   interaction from the player, just not a truly silent API call.
+   materials are present. **Two clicks, not one, and not silent**
+   (confirmed in-client 2026-10-05 - see "Confirmed via in-client
+   research" below and `docs/craft-profession-switch-findings.md`): the
+   first click opens the real Blizzard crafting frame on the recipe and
+   leaves it visible; the second click crafts and closes the frame.
 3. **Request.** If materials are also missing, yell a message offering to
    craft and place the good in exchange for the missing materials, with
    the specific missing items and quantities generated dynamically into
@@ -188,22 +187,32 @@ Kit); the full command-by-command log lives in `docs/research.txt`:
   directly against `C_Item.GetItemCount` for each required reagent - the
   same walk needed anyway to build the dynamic missing-materials list,
   so no second, unreliable signal is needed on top of it.
-- `C_TradeSkillUI.CraftRecipe(recipeSpellID)` is callable from ordinary
-  (non-secure) addon code, but **confirmed during implementation
-  (2026-10-05) to do nothing at all - no error, no cast bar, no
-  animation - unless the real Blizzard crafting frame is open to that
-  recipe first.** The original research pass's "bag count 0 -> 1" test
-  happened to have the frame open at the time, without that being
-  noted. The real, confirmed mechanism: call
-  `C_TradeSkillUI.OpenRecipe(recipeSpellID)` (confirmed to be the right
-  entry point - `OpenTradeSkill` was tried first and does nothing
-  visible, which isn't sufficient), then `CraftRecipe(recipeSpellID)`,
-  then hide `ProfessionsFrame` immediately - confirmed this does
-  **not** interrupt the resulting cast bar/animation, which plays
-  through to completion regardless of the frame's visibility. The net
-  effect is a single, synchronous, effectively invisible flash rather
-  than true silence, but it's still one click from the player's
-  perspective.
+- `C_TradeSkillUI.CraftRecipe(recipeSpellID)` behavior, confirmed
+  in-client 2026-10-05 round by round in
+  `docs/craft-profession-switch-findings.md` (round numbers below refer
+  to that ledger). It never showed an error in any round; it either
+  starts a cast or does nothing.
+  - With no crafting frame open, it does nothing (Round 2).
+  - It crafts when called from a keypress or click while
+    `ProfessionsFrame` is shown on that recipe (Rounds 3, 10, 14-17).
+  - Deferred with `C_Timer.After`, it does nothing, even with the frame
+    open on the recipe (Rounds 11, 12) - it has to run inside the
+    click/keypress itself.
+  - `C_TradeSkillUI.OpenRecipe(recipeSpellID)` opens `ProfessionsFrame`
+    on the recipe, including after a different profession was last
+    opened by hand (Rounds 4, 8).
+  - `OpenRecipe` -> `CraftRecipe` -> hide in a single click crafted only
+    when the recipe's own profession was the last one opened by hand
+    (Round 6); after Blacksmithing was opened by hand, the same
+    single-click sequence targeting Mining did nothing, with or without
+    the hide (Rounds 7, 9).
+  - `OpenRecipe` on one click, then `CraftRecipe` -> hide
+    `ProfessionsFrame` on a later click, with the frame left shown in
+    between, crafted in that same state (Rounds 10, 14-17). Hiding the
+    frame between the two clicks broke it (Round 13). Hiding it right
+    after `CraftRecipe` did not stop the cast (Rounds 6, 14).
+  This two-click sequence is what `Professions.lua`'s `Craft`
+  implements.
 - **Corrected risk, was previously mislabeled as crafting**: using/placing
   the crafted good is the step that's actually hard. `C_Item.UseItemByName`
   cannot be called from ordinary insecure Lua at all (confirmed: it throws

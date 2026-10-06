@@ -267,34 +267,91 @@ tests["BuildRequestMessage returns nil rather than leak a missing reagent's bare
     assert(message == nil)
 end
 
--- Craft: DI, same style as EvaluateGood/BuildRequestMessage. Confirmed
--- in-client 2026-10-05: a bare CraftRecipe call does nothing at all
--- without OpenRecipe first, and hiding the frame immediately after
--- does not interrupt the resulting cast - so the real sequence is
--- OpenRecipe -> CraftRecipe -> hide the frame, in that order.
+-- Craft: DI, same style as EvaluateGood/BuildRequestMessage. Two-click
+-- sequence per docs/craft-profession-switch-findings.md Rounds 14-16:
+-- first click OpenRecipe only, second click (frame still shown) does
+-- CraftRecipe -> hide the frame.
 
-tests["Craft calls OpenRecipe, then CraftRecipe, then hides the frame, in order"] = function()
-    local CS = loadProfessions()
-    local calls = {}
-    CS.Professions.Craft(1230161, {
+local function craftMocks(calls, frameShown)
+    return {
         openRecipe = function(id) table.insert(calls, { "open", id }) end,
         craftRecipe = function(id) table.insert(calls, { "craft", id }) end,
-        hideFrame = function() table.insert(calls, { "hide" }) end,
-    })
+        isFrameShown = function() return frameShown[1] end,
+        hideFrame = function() table.insert(calls, { "hide" }); frameShown[1] = false end,
+    }
+end
 
-    assert(#calls == 3)
+tests["Craft's first click only opens the recipe"] = function()
+    local CS = loadProfessions()
+    local calls, frameShown = {}, { false }
+    local result = CS.Professions.Craft(1230161, craftMocks(calls, frameShown))
+
+    assert(result == "opened")
+    assert(#calls == 1)
     assert(calls[1][1] == "open" and calls[1][2] == 1230161)
+end
+
+tests["Craft's second click, frame still shown, crafts then hides the frame"] = function()
+    local CS = loadProfessions()
+    local calls, frameShown = {}, { false }
+    local options = craftMocks(calls, frameShown)
+    CS.Professions.Craft(1230161, options)
+    frameShown[1] = true
+    local result = CS.Professions.Craft(1230161, options)
+
+    assert(result == "crafted")
+    assert(#calls == 3)
     assert(calls[2][1] == "craft" and calls[2][2] == 1230161)
     assert(calls[3][1] == "hide")
 end
 
-tests["Craft still hides the frame even if openRecipe/craftRecipe aren't available"] = function()
+tests["Craft reopens instead of crafting if the frame was closed between clicks"] = function()
     local CS = loadProfessions()
+    local calls, frameShown = {}, { false }
+    local options = craftMocks(calls, frameShown)
+    CS.Professions.Craft(1230161, options)
+    local result = CS.Professions.Craft(1230161, options)
+
+    assert(result == "opened")
+    assert(#calls == 2)
+    assert(calls[2][1] == "open")
+end
+
+tests["Craft opens rather than crafts when the shown frame is on another recipe"] = function()
+    local CS = loadProfessions()
+    local calls, frameShown = {}, { false }
+    local options = craftMocks(calls, frameShown)
+    CS.Professions.Craft(1230171, options)
+    frameShown[1] = true
+    local result = CS.Professions.Craft(1230161, options)
+
+    assert(result == "opened")
+    assert(calls[2][1] == "open" and calls[2][2] == 1230161)
+end
+
+tests["Craft's third click after a craft starts over with an open"] = function()
+    local CS = loadProfessions()
+    local calls, frameShown = {}, { false }
+    local options = craftMocks(calls, frameShown)
+    CS.Professions.Craft(1230161, options)
+    frameShown[1] = true
+    CS.Professions.Craft(1230161, options)
+    local result = CS.Professions.Craft(1230161, options)
+
+    assert(result == "opened")
+    assert(calls[4][1] == "open")
+end
+
+tests["Craft doesn't error if openRecipe/craftRecipe aren't available"] = function()
+    local CS = loadProfessions()
+    local frameShown = { true }
     local hidden = false
-    local ok = pcall(CS.Professions.Craft, 1230161, {
+    local options = {
+        isFrameShown = function() return frameShown[1] end,
         hideFrame = function() hidden = true end,
-    })
-    assert(ok == true)
+    }
+    assert(pcall(CS.Professions.Craft, 1230161, options) == true)
+    assert(pcall(CS.Professions.Craft, 1230161, options) == true)
     assert(hidden == true)
 end
 

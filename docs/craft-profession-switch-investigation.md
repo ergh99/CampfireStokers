@@ -1,6 +1,13 @@
-# Craft Profession-Switch Investigation (unresolved)
+# Craft Profession-Switch Investigation (superseded)
 
-Status: **open, unresolved**. Written 2026-10-05 to bootstrap a fresh
+**Superseded 2026-10-05 - do not rely on anything below.** This
+write-up was reconstructed from memory and contains claims that turned
+out wrong. The authoritative record is the verbatim ledger in
+[craft-profession-switch-findings.md](craft-profession-switch-findings.md);
+the outcome is in docs/decision-log.md's "Crafting is two clicks" entry.
+Kept only for history.
+
+Original status line: "open, unresolved". Written 2026-10-05 to bootstrap a fresh
 session after this one accumulated too many false starts. Read this
 in full before proposing any new test - most obvious hypotheses below
 are already disproven with real in-client evidence.

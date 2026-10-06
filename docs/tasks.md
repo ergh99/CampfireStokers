@@ -154,6 +154,10 @@ infrastructure; adds to them, doesn't replace them).
       UI interaction). This risk was mislabeled: crafting turned out to be
       the easy part. The real architectural risk, discovered in the same
       session, is using/placing the crafted item - see the new item below.
+      **Superseded 2026-10-05**: `CraftRecipe` does nothing unless the
+      real crafting frame is shown on that recipe, and crafting ended up
+      as two clicks - see the "Clicking a button" item below and
+      `docs/craft-profession-switch-findings.md`.
 - [x] In-client discovery: `C_Item.UseItemByName` (the "use/place the
       item" step) cannot be called from ordinary insecure Lua at all -
       confirmed 2026-10-02, it throws citing `SecureActionButtonTemplate`,
@@ -232,13 +236,14 @@ infrastructure; adds to them, doesn't replace them).
       when `EvaluateGood` says so.
 - [x] Clicking a button, with no confirmation dialog at any step, matching
       this add-on's existing one-click philosophy: uses the item from bags
-      if present; otherwise attempts to craft if materials are present
-      (confirmed 2026-10-05: not literally silent - requires briefly
-      opening and immediately closing the real crafting frame via
-      `C_TradeSkillUI.OpenRecipe`, since a bare `CraftRecipe` call does
-      nothing at all without it; still one click, just not a truly
-      silent API call); otherwise yells a request for the missing
-      materials.
+      if present; otherwise crafts if materials are present - in two
+      clicks (confirmed in-client 2026-10-05, Rounds 14-17 of
+      `docs/craft-profession-switch-findings.md`): the first opens the
+      real crafting frame on the recipe via `C_TradeSkillUI.OpenRecipe`,
+      the second calls `CraftRecipe` and hides the frame. A single-click
+      open-craft-hide did nothing once a different profession had been
+      opened by hand (Rounds 7, 9); otherwise yells a request for the
+      missing materials.
       Confirmed 2026-10-02: message structure is "I can place a/an
       &lt;item link&gt; at the campfire if someone wants to provide
       &lt;list of missing materials&gt;," with the item link and the
@@ -253,3 +258,12 @@ infrastructure; adds to them, doesn't replace them).
       `EvaluateGood`, `BuildRequestMessage` via dependency injection,
       `Craft`/`CreateEventFrame` via the same monkey-patch/fake-frame
       patterns `send_spec.lua`/`detection_spec.lua` already use).
+- [ ] **Profession buttons vanish when the campfire aura drops.**
+      Observed in-client 2026-10-05 (Round 17 of
+      `docs/craft-profession-switch-findings.md`): interrupting a craft
+      cast by moving the character removes the campfire aura; the panel
+      reacts by hiding the profession (crafting) buttons right away,
+      while the panel itself and its other elements stay visible until
+      the delayed auto-close timer finishes. **Desired**: the profession
+      buttons stay visible for as long as the panel does, until that
+      timer closes the panel. Not yet addressed.

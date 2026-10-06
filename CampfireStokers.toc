@@ -7,7 +7,6 @@
 ## SavedVariables: CampfireStokersDB
 ## AddonCompartmentFunc: CampfireStokers_OnAddonCompartmentClick
 
-CraftSwitchTest.lua
 Data.lua
 Tree.lua
 Send.lua

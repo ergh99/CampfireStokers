@@ -954,6 +954,11 @@ warnings).
 
 ## 2026-10-05 — CraftRecipe actually requires the real crafting frame
 
+**Partly superseded** by "Crafting is two clicks" below: the
+single-click `OpenRecipe` -> `CraftRecipe` -> hide sequence this entry
+calls fully confirmed did nothing once a different profession had been
+opened by hand.
+
 Third in-client pass surfaced a reagent-link gap and a genuinely
 significant correction to how crafting works.
 
@@ -1015,3 +1020,55 @@ call, so the sequence is directly unit-testable. `ProfessionsFrame`
 added to `.luacheckrc`'s `read_globals`. Verified clean: syntax,
 `luacheck .` (0 warnings), all 107 tests (up from 105), and
 `wow-secret-lint@1.9.0` (0 errors/0 warnings).
+
+## 2026-10-05 — Crafting is two clicks
+
+A 17-round in-client investigation, recorded verbatim as each result
+came in, in `docs/craft-profession-switch-findings.md` (round numbers
+below refer to that ledger). It started from zero: the earlier
+`docs/craft-profession-switch-investigation.md` write-up was rebuilt
+from memory, contained claims that turned out wrong, and was used only
+as a list of API names to probe.
+
+What the ledger shows:
+
+- `CraftRecipe` alone, with no crafting frame open, does nothing
+  (Round 2). From a keypress with `ProfessionsFrame` shown on the recipe,
+  it crafts (Round 3).
+- Deferred with `C_Timer.After(0, ...)`, it does nothing, even with the
+  frame opened by hand on the recipe (Rounds 11, 12). It has to run
+  inside the click or keypress itself.
+- `OpenRecipe` -> `CraftRecipe` -> hide in one input crafted when Mining
+  (the recipe's own profession) was the last panel opened by hand
+  (Round 6), and did nothing after Blacksmithing had been opened by hand
+  (Rounds 7, 9), even though `OpenRecipe` alone still opened Mining on
+  the right recipe in that state (Round 8).
+- `OpenRecipe` on one input, then `CraftRecipe` -> hide on a later input,
+  with the frame left shown in between, crafted in that Blacksmithing
+  state (Rounds 10, 14), from the real secure test button (Round 15),
+  at the campfire with the add-on's panel open (Round 16), and from the
+  add-on's own profession-good button (Round 17). Hiding the frame
+  between the two inputs broke it (Round 13).
+
+**Decision** (player's choice, with the frame visible between clicks as
+the known trade-off): `CS.Professions.Craft` is now two clicks. The first
+calls `OpenRecipe` and returns `"opened"`. The second crafts, hides the
+frame and returns `"crafted"`, but only if `Craft` itself opened that
+same recipe on the previous click and `ProfessionsFrame` is still shown;
+otherwise the click opens the recipe again. That last guard covers a
+frame the player opened on another profession, a case the ledger never
+tested crafting into. `UI.lua`'s `PreClick` needed no change.
+`tests/professions_spec.lua`'s two old `Craft` tests were replaced by six
+covering open, craft, reopen-after-close, other-recipe and start-over.
+
+Removed: the temporary `CraftSwitchTest.lua`, its TOC entry and its two
+temporary `.luacheckrc` globals.
+
+**Found during Round 17, not fixed**: moving to interrupt a craft cast
+removed the campfire aura, and the panel hid the profession buttons right
+away while the rest of the panel stayed up until the auto-close timer
+finished. The player wants the profession buttons to stay visible until
+the panel closes; logged as an open item in `docs/tasks.md`.
+
+Verified clean: syntax, `luacheck .` (0 warnings), all 110 tests, and
+`wow-secret-lint@1.9.0 --strict` (0 errors/0 warnings).

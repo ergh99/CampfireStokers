@@ -210,40 +210,50 @@ function CS.Professions.BuildRequestMessage(entry, itemId, missing, options)
         .. table.concat(parts, ", ") .. "."
 end
 
--- Impure. Confirmed in-client 2026-10-05 (see docs/decision-log.md):
--- a bare CraftRecipe call does nothing at all (no error, no cast bar,
--- no animation) unless the real Blizzard crafting frame is open to
--- that recipe - C_TradeSkillUI.OpenRecipe does that (confirmed to be
--- the right entry point; C_TradeSkillUI.OpenTradeSkill was tried first
--- and does nothing visible, which isn't enough). The frame
--- (`ProfessionsFrame`) is hidden again immediately after CraftRecipe
--- is called - confirmed this does NOT interrupt the resulting cast bar
--- /animation, which plays through to completion regardless of the
--- frame's visibility, matching how a spell cast is independent of any
--- UI's open/closed state. The net effect is a single, synchronous,
--- effectively invisible flash - not truly silent, but still one click
--- from the player's perspective, per the design decision in the
--- current implementation plan.
+-- Recipe this module last opened via OpenRecipe, so a second click only
+-- crafts when the shown ProfessionsFrame is the one Craft itself opened
+-- for that same recipe (not a panel the player opened on something else).
+local openedRecipeSpellId
+
+-- Impure. Two clicks, per docs/craft-profession-switch-findings.md: a
+-- single click doing OpenRecipe -> CraftRecipe -> hide produced no cast
+-- once a different profession had been opened by hand (Rounds 7, 9),
+-- while OpenRecipe on one click and CraftRecipe -> hide on a later click,
+-- with ProfessionsFrame still shown in between, crafted (Rounds 14-16).
+-- CraftRecipe must run inside the click itself - deferring it with
+-- C_Timer.After produced no cast (Rounds 11, 12) - and hiding the frame
+-- between the two clicks broke it (Round 13).
+-- Returns "opened" for the first click and "crafted" for the second.
 -- `options.openRecipe`/`craftRecipe` default to the real
--- C_TradeSkillUI functions; `options.hideFrame` defaults to hiding the
--- real ProfessionsFrame.
+-- C_TradeSkillUI functions; `options.isFrameShown`/`hideFrame` default
+-- to checking/hiding the real ProfessionsFrame.
 function CS.Professions.Craft(recipeSpellId, options)
     options = options or {}
     local openRecipe = options.openRecipe or (C_TradeSkillUI and C_TradeSkillUI.OpenRecipe)
     local craftRecipe = options.craftRecipe or (C_TradeSkillUI and C_TradeSkillUI.CraftRecipe)
+    local isFrameShown = options.isFrameShown or function()
+        return ProfessionsFrame ~= nil and ProfessionsFrame:IsShown()
+    end
     local hideFrame = options.hideFrame or function()
         if ProfessionsFrame then
             ProfessionsFrame:Hide()
         end
     end
 
-    if openRecipe then
-        openRecipe(recipeSpellId)
+    if openedRecipeSpellId ~= recipeSpellId or not isFrameShown() then
+        openedRecipeSpellId = recipeSpellId
+        if openRecipe then
+            openRecipe(recipeSpellId)
+        end
+        return "opened"
     end
+
+    openedRecipeSpellId = nil
     if craftRecipe then
         craftRecipe(recipeSpellId)
     end
     hideFrame()
+    return "crafted"
 end
 
 -- Fire-and-forget: touches C_Item.GetItemInfo for every good's item id
