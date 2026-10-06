@@ -1118,3 +1118,28 @@ message tests now expect "a" for Fish Bowl. Confirmed in-client by the
 player: "confirmed working". Verified clean: syntax, `luacheck .`
 (0 warnings), all 113 tests, and `wow-secret-lint@1.9.0 --strict`
 (0 errors/0 warnings).
+
+## 2026-10-05 — Use-state click needed the press registered too
+
+Reported in-client: clicking a profession button in the use state did
+nothing and showed no error. Worked through in
+`docs/profession-use-findings.md`. The secure attributes were correct
+(`type` = `item`, `item` = `Sharpening Wheel`, matching the client's own
+item name), but `ActionButtonUseKeyDown` was `1` and the button only
+registered `"AnyUp"` (Round 1). Also registering `"AnyDown"` on that one
+button made the click start the placement cast (Round 2). This reverses
+the 2026-10-04 change to `"AnyUp"` only, which had been made because
+registering both fired `PreClick` twice per click.
+
+`UI.lua` now registers both, and `PreClick` returns early on the press,
+so craft and request still run once per click on the release (where
+craft was verified in the crafting ledger's Rounds 15-17). Verified
+in-client: use, craft (two clicks) and request each worked once per
+click (Round 3). The player noted that placing a campfire good starts a
+one-hour cooldown, and that only the Basic Campfire Kit uses a ground
+target; the other goods cast and appear at the character's feet.
+
+Found during Round 3, not fixed here: the Fishing and First Aid request
+yells were refused by the 255-character check, apparently because item
+links are counted at their full raw length - investigated in
+`docs/yell-length-findings.md`.

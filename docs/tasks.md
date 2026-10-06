@@ -169,6 +169,10 @@ infrastructure; adds to them, doesn't replace them).
       (craft/request) works correctly with no taint, and caught a real
       bug before it shipped (`RegisterForClicks("AnyUp","AnyDown")`
       double-firing `PreClick` per click - fixed to `"AnyUp"` only).
+      **Revised 2026-10-05**: `"AnyUp"` only broke item use with
+      `ActionButtonUseKeyDown` on; now both are registered and
+      `PreClick` ignores the press - see "Placing a prepared campfire
+      good does nothing" below.
       Implemented in `UI.lua`'s `createProfessionButton`/
       `layoutProfessionBlock`.
 - [x] In-client discovery: confirmed 2026-10-02. Reagent item IDs are
@@ -294,3 +298,17 @@ infrastructure; adds to them, doesn't replace them).
       only Incense Candle and Enchanted Lute take "an"), used by
       `BuildRequestMessage` with the item's plain name. Unit tests cover
       both articles and every GOODS name.
+- [x] **Placing a prepared campfire good does nothing.** Reported
+      in-client 2026-10-05: clicking a profession button that should
+      place a good already in the bags (the "use" state) does nothing
+      and shows no error. That path is the secure click-through set up
+      in `UI.lua`'s `applyProfessionButtonState` (`type` = `"item"`,
+      `item` = the item's name).
+      **Done 2026-10-05, verified in-client** (Round 3 of
+      `docs/profession-use-findings.md`: use, craft and request each
+      confirmed working, one action per click): the attributes
+      were correct (Round 1), but `ActionButtonUseKeyDown` was `1` and
+      the button only registered `"AnyUp"`; registering `"AnyDown"` too
+      made the click place the Sharpening Wheel (Round 2). `UI.lua` now
+      registers both, and `PreClick` ignores the press so craft/request
+      still fire once per click.

@@ -166,15 +166,18 @@ end
 -- Creates one of the 11 fixed profession-good buttons, permanently bound
 -- to its own item - unlike acquireRow's pool, these are never recycled
 -- (a SecureActionButtonTemplate button's identity can't be reassigned
--- the way a pooled row's label can). RegisterForClicks deliberately
--- requests only "AnyUp": requesting "AnyDown" too was confirmed
--- in-client to double-fire PreClick per physical click, which would
--- double-craft or double-yell - see docs/decision-log.md.
+-- the way a pooled row's label can). RegisterForClicks requests both
+-- "AnyUp" and "AnyDown": with the ActionButtonUseKeyDown CVar on, the
+-- secure item use only happens on the press, so an "AnyUp"-only button
+-- never placed anything (docs/profession-use-findings.md Rounds 1-2).
+-- Registering both fires PreClick twice per physical click, so PreClick
+-- below ignores the press - otherwise it would double-craft or
+-- double-yell.
 local function createProfessionButton(entry)
     local button = CreateFrame("Button", "CampfireStokersProfessionButton" .. entry.id, frame,
         "SecureActionButtonTemplate")
     button:SetSize(PROFESSION_ICON_SIZE, PROFESSION_ICON_SIZE)
-    button:RegisterForClicks("AnyUp")
+    button:RegisterForClicks("AnyUp", "AnyDown")
 
     button.icon = button:CreateTexture(nil, "ARTWORK")
     button.icon:SetAllPoints()
@@ -199,7 +202,12 @@ local function createProfessionButton(entry)
     -- when they're cleared (craft/request), this is the only logic that
     -- runs. Confirmed in-client 2026-10-04 that both cases work with no
     -- taint - see docs/decision-log.md.
-    button:SetScript("PreClick", function(self)
+    -- Acts on the release only (see RegisterForClicks above); craft was
+    -- verified in-client on the release (craft ledger Rounds 15-17).
+    button:SetScript("PreClick", function(self, _, down)
+        if down then
+            return
+        end
         if self.pendingAction == "craft" then
             CS.Professions.Craft(self.pendingRecipeSpellId)
         elseif self.pendingAction == "request" then
