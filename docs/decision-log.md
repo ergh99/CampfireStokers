@@ -1163,3 +1163,15 @@ message. Confirmed in-client with a real request yell (Round 6).
 `Tree.lua`'s phrase-editor check still uses raw `#text`, unchanged.
 Verified clean: syntax, `luacheck .` (0 warnings), all 117 tests, and
 `wow-secret-lint@1.9.0 --strict` (0 errors/0 warnings).
+
+## 2026-10-09 — Text popups made fully opaque
+
+Reported in-client: the options rows showed through the phrase prompt.
+Both text popups used only the `UI-DialogBox-Background` backdrop, which
+is partly transparent, and a backdrop tint can't raise its alpha. A
+solid black layer inside the border (`addOpaqueUnderlay` in `UI.lua`)
+now sits under the backdrop of the phrase prompt and the selftest/export
+popup. Tried in-client first: the black layer made the prompt fully
+opaque, and redrawing the dialog texture on top of it changed nothing
+visible, so the result is effectively flat black. Confirmed after a
+reload; the player called it fine for now.

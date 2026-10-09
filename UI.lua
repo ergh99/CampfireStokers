@@ -522,6 +522,18 @@ end
 
 local textPopup
 
+-- The DialogBox background texture is partly transparent, so whatever is
+-- behind a popup shows through it (reported in-client over the options
+-- rows), and a backdrop tint can only lower its alpha, not raise it. A
+-- solid black layer inside the border makes the popup fully opaque;
+-- tried in-client, the dark texture over it looks the same as flat black.
+local function addOpaqueUnderlay(popup)
+    local underlay = popup:CreateTexture(nil, "BACKGROUND", nil, -8)
+    underlay:SetPoint("TOPLEFT", popup, "TOPLEFT", 11, -12)
+    underlay:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -12, 11)
+    underlay:SetColorTexture(0, 0, 0, 1)
+end
+
 -- Same technique simc-addon uses to show exportable text: a DialogBox-style
 -- backdrop frame holding a ScrollFrame whose scroll child is a multi-line
 -- EditBox. HighlightText() selects everything on show, so Ctrl+C copies
@@ -542,6 +554,7 @@ local function ensureTextPopup()
         edgeSize = 32,
         insets = { left = 11, right = 12, top = 12, bottom = 11 },
     })
+    addOpaqueUnderlay(popup)
     popup:SetMovable(true)
     popup:EnableMouse(true)
     popup:SetClampedToScreen(true)
@@ -608,6 +621,7 @@ local function ensureTextPromptPopup()
         edgeSize = 32,
         insets = { left = 11, right = 12, top = 12, bottom = 11 },
     })
+    addOpaqueUnderlay(popup)
     popup:SetMovable(true)
     popup:EnableMouse(true)
     popup:SetClampedToScreen(true)
