@@ -27,10 +27,69 @@ local PROFESSION_BLOCK_BOTTOM_GAP = 8
 -- Say/Yell toggle, so they sit above it, not sandwiched between it and
 -- the phrases it actually controls (reported as confusing placement
 -- during in-client testing).
-local TITLE_AREA_HEIGHT = 34
+local TITLE_AREA_HEIGHT = 46
 local SAY_YELL_HEIGHT = 20
 local SAY_YELL_BOTTOM_GAP = 10
 local CONTROLS_MIN_HEIGHT = TITLE_AREA_HEIGHT + SAY_YELL_HEIGHT + SAY_YELL_BOTTOM_GAP
+local TITLE_ICON_SIZE = 28
+local TITLE_ICON_TEXT_GAP = 10
+-- Same glow texture and padding ratio as PROFESSION_GLOW_SIZE (110/64).
+local TITLE_GLOW_SIZE = 48
+-- Each flicker step fades to a random brightness over a random short time.
+local FLICKER_MIN_ALPHA = 0.35
+local FLICKER_MIN_SECONDS = 0.06
+local FLICKER_MAX_SECONDS = 0.28
+local DIVIDER_INSET = 10
+-- Blizzard's own achievement-frame border (BACKDROP_ACHIEVEMENTS_0_64 in
+-- Blizzard_SharedXML/Backdrop.lua), confirmed rendering in-client via the
+-- since-removed `/campfire try border`. At edge size 64 its visible wood
+-- is ~22 units thick (measured from an in-client capture; Blizzard's
+-- achievement frame likewise insets its content 21), so the border frame
+-- sits that far outside the panel: the wood surrounds the content where
+-- the old thin border was, instead of covering it.
+local WOOD_BORDER = {
+    edgeFile = "Interface/AchievementFrame/UI-Achievement-WoodBorder",
+    edgeSize = 64,
+    tileEdge = true,
+}
+local WOOD_OUTSET = 22
+-- The texture itself has a thin gray metal rim around the wood's outer
+-- edge (~4 units, measured from an in-client capture). It's trimmed off
+-- by clipping the border to this much less than WOOD_OUTSET.
+local WOOD_RIM = 4
+local WOOD_VISIBLE_OUTSET = WOOD_OUTSET - WOOD_RIM
+-- The rim bevels diagonally across each corner, so a sliver of it (~2.5
+-- units, measured in-client) survives the straight clip there. A small
+-- square matching the near-black corner wood covers it.
+local WOOD_CORNER_CAP = 3
+-- The background reaches this far under the wood so no gap shows at its
+-- inner edge.
+local WOOD_UNDERLAP = 4
+local CLOSE_BUTTON_EXTRA_PADDING = 2
+
+-- Warm "campfire" theme on stock Blizzard textures, tinted rather than
+-- replaced so the panel still sits comfortably beside the default UI.
+local PALETTE = {
+    background = { 0.165, 0.102, 0.063, 1 }, -- warm charcoal-brown #2A1A10
+    -- Multiplies the parchment (mean color ~155,110,46 measured from an
+    -- in-client capture) down to ~52,34,20, keeping its grain and stains.
+    backgroundTexture = { 0.34, 0.31, 0.43 },
+    divider = { 0.549, 0.376, 0.224, 0.6 }, -- worn leather #8C6039
+    woodCorner = { 0.03, 0.02, 0.01, 1 }, -- the wood border's dark corners
+    header = { 0.910, 0.514, 0.227 }, -- ember orange #E8833A
+    text = { 0.902, 0.835, 0.690 }, -- parchment #E6D5B0
+    textNeedsTarget = { 0.55, 0.50, 0.42 }, -- dimmed parchment
+    textFlagged = { 0.7, 0.35, 0.35 },
+    rowHover = { 0.910, 0.514, 0.227, 0.35 },
+    rowFlash = { 0.910, 0.514, 0.227, 0.8 },
+}
+
+-- Confirmed present and rendering in this client via `/campfire textures`
+-- (file 130661); every earlier background path was assumed, never seen.
+local BACKGROUND_TEXTURE = "Interface/AchievementFrame/UI-Achievement-Parchment-Horizontal"
+-- The default UI's menu/list highlight, which fades at its left and right
+-- ends; createSoftBand fades its top and bottom too.
+local ROW_HIGHLIGHT_TEXTURE = "Interface/QuestFrame/UI-QuestTitleHighlight"
 
 local frame
 local sayButton
@@ -42,6 +101,7 @@ local professionButtons = {}
 local previousProfessionBlockHeight = 0
 local combatFlushFrame
 local professionBlockDirty = false
+local professionDivider
 
 CS.UI.isAutoOpened = false
 
@@ -49,6 +109,47 @@ local function cancelPendingHide()
     if pendingHideTimer then
         pendingHideTimer:Cancel()
         pendingHideTimer = nil
+    end
+end
+
+-- The highlight texture already fades at its ends but has hard top and
+-- bottom edges, so it's drawn as two halves, each with a vertex-color
+-- gradient fading to transparent at its outer edge.
+local function createSoftBand(row, layer, color)
+    local r, g, b, a = unpack(color)
+    local solid = CreateColor(r, g, b, a)
+    local clear = CreateColor(r, g, b, 0)
+
+    local top = row:CreateTexture(nil, layer)
+    top:SetPoint("TOPLEFT")
+    top:SetPoint("TOPRIGHT")
+    top:SetPoint("BOTTOM", row, "CENTER")
+    top:SetTexture(ROW_HIGHLIGHT_TEXTURE)
+    top:SetTexCoord(0, 1, 0, 0.5)
+    top:SetBlendMode("ADD")
+    top:SetGradient("VERTICAL", solid, clear) -- bottom color, then top
+
+    local bottom = row:CreateTexture(nil, layer)
+    bottom:SetPoint("BOTTOMLEFT")
+    bottom:SetPoint("BOTTOMRIGHT")
+    bottom:SetPoint("TOP", row, "CENTER")
+    bottom:SetTexture(ROW_HIGHLIGHT_TEXTURE)
+    bottom:SetTexCoord(0, 1, 0.5, 1)
+    bottom:SetBlendMode("ADD")
+    bottom:SetGradient("VERTICAL", clear, solid)
+
+    return { top, bottom }
+end
+
+local function setBandAlpha(band, alpha)
+    for _, texture in ipairs(band) do
+        texture:SetAlpha(alpha)
+    end
+end
+
+local function setBandShown(band, shown)
+    for _, texture in ipairs(band) do
+        texture:SetShown(shown)
     end
 end
 
@@ -69,15 +170,22 @@ local function acquireRow()
         row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         row.text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
         row.text:SetJustifyH("LEFT")
+
+        -- A soft ember wash on hover. Rows never had a highlight texture,
+        -- so the old LockHighlight() click feedback had nothing to show.
+        row.hover = createSoftBand(row, "HIGHLIGHT", PALETTE.rowHover)
+        row.flash = createSoftBand(row, "BACKGROUND", PALETTE.rowFlash)
     end
 
+    setBandAlpha(row.hover, 1)
+    setBandShown(row.flash, false)
     row.collapseIcon:Hide()
     row.collapseIcon:SetScript("OnClick", nil)
     row.text:ClearAllPoints()
     row.text:SetPoint("LEFT", row, "LEFT", 4, 0)
     row.text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     row.text:SetFontObject("GameFontHighlight")
-    row.text:SetTextColor(1, 1, 1)
+    row.text:SetTextColor(unpack(PALETTE.text))
     row.phrase = nil
     row.needsTarget = nil
     row.sendable = nil
@@ -123,9 +231,9 @@ local function sendOptions()
 end
 
 local function flashRow(row)
-    row:LockHighlight()
+    setBandShown(row.flash, true)
     C_Timer.After(HIGHLIGHT_DURATION, function()
-        row:UnlockHighlight()
+        setBandShown(row.flash, false)
     end)
 end
 
@@ -310,25 +418,18 @@ local function layoutProfessionBlock(startY)
     local availableWidth = PANEL_WIDTH - (2 * PROFESSION_BLOCK_SIDE_PADDING)
     local columns = math.max(1, math.floor(availableWidth / (PROFESSION_ICON_SIZE + PROFESSION_ICON_GAP)))
     local topY = startY - PROFESSION_BLOCK_TOP_GAP
-    local column, row = 0, 0
+    local step = PROFESSION_ICON_SIZE + PROFESSION_ICON_GAP
 
+    -- Evaluate everything first: centering a row needs to know how many
+    -- buttons end up in it.
+    local visibleButtons = {}
     for _, entry in ipairs(CS.Professions.GOODS) do
         local button = professionButtons[entry.id]
         local result = evaluateGoodSafely(entry)
 
         if result.visible then
-            local x = PROFESSION_BLOCK_SIDE_PADDING + column * (PROFESSION_ICON_SIZE + PROFESSION_ICON_GAP)
-            local y = topY - row * (PROFESSION_ICON_SIZE + PROFESSION_ICON_GAP)
-            button:ClearAllPoints()
-            button:SetPoint("TOPLEFT", frame, "TOPLEFT", x, y)
             applyProfessionButtonState(button, result)
-            button:Show()
-
-            column = column + 1
-            if column >= columns then
-                column = 0
-                row = row + 1
-            end
+            table.insert(visibleButtons, button)
         else
             button:Hide()
             button:SetAttribute("type", nil)
@@ -336,7 +437,19 @@ local function layoutProfessionBlock(startY)
         end
     end
 
-    local rowsUsed = row + (column > 0 and 1 or 0)
+    local count = #visibleButtons
+    for index, button in ipairs(visibleButtons) do
+        local row = math.floor((index - 1) / columns)
+        local column = (index - 1) % columns
+        local inRow = math.min(columns, count - row * columns)
+        local rowWidth = inRow * PROFESSION_ICON_SIZE + (inRow - 1) * PROFESSION_ICON_GAP
+        local x = (PANEL_WIDTH - rowWidth) / 2 + column * step
+        button:ClearAllPoints()
+        button:SetPoint("TOPLEFT", frame, "TOPLEFT", x, topY - row * step)
+        button:Show()
+    end
+
+    local rowsUsed = math.ceil(count / columns)
     if rowsUsed > 0 then
         previousProfessionBlockHeight = PROFESSION_BLOCK_TOP_GAP
             + (rowsUsed * PROFESSION_ICON_SIZE) + ((rowsUsed - 1) * PROFESSION_ICON_GAP)
@@ -356,15 +469,17 @@ local function applyRowState(row)
     local hasTarget = UnitExists("target")
     local enabled = row.sendable and (not row.needsTarget or hasTarget)
     if not row.sendable then
-        row.text:SetTextColor(0.7, 0.35, 0.35) -- flagged: never sendable
+        row.text:SetTextColor(unpack(PALETTE.textFlagged)) -- never sendable
         row.tooltipText = row.classifyReason
     elseif not enabled then
-        row.text:SetTextColor(0.6, 0.6, 0.6) -- needs a target first
+        row.text:SetTextColor(unpack(PALETTE.textNeedsTarget))
         row.tooltipText = CS.Data.L.ui_needs_target_tooltip
     else
-        row.text:SetTextColor(1, 1, 1)
+        row.text:SetTextColor(unpack(PALETTE.text))
         row.tooltipText = nil
     end
+    -- No hover wash on a row a click won't send, so it doesn't look live.
+    setBandAlpha(row.hover, enabled and 1 or 0)
     if enabled then
         row:SetScript("OnClick", function()
             onPhraseClick(row, row.phrase)
@@ -390,7 +505,20 @@ function CS.UI.Refresh()
     releaseRows()
 
     local y = -TITLE_AREA_HEIGHT
-    y = y - layoutProfessionBlock(y)
+    local professionBlockHeight = layoutProfessionBlock(y)
+    y = y - professionBlockHeight
+
+    -- Separates the profession goods (which always yell) from the
+    -- Say/Yell toggle and the phrases it controls.
+    if professionBlockHeight > 0 then
+        professionDivider:ClearAllPoints()
+        professionDivider:SetPoint("TOPLEFT", frame, "TOPLEFT", DIVIDER_INSET, y + 1)
+        professionDivider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -DIVIDER_INSET, y + 1)
+        professionDivider:Show()
+        y = y - 6
+    else
+        professionDivider:Hide()
+    end
 
     sayButton:ClearAllPoints()
     sayButton:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, y)
@@ -421,7 +549,7 @@ function CS.UI.Refresh()
         headerRow.text:SetPoint("LEFT", headerRow.collapseIcon, "RIGHT", 6, 0)
         headerRow.text:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
         headerRow.text:SetFontObject("GameFontNormalLarge")
-        headerRow.text:SetTextColor(1, 0.82, 0) -- WoW's standard header gold
+        headerRow.text:SetTextColor(unpack(PALETTE.header))
         headerRow.text:SetText(category.name)
         headerRow:SetScript("OnClick", function()
             onCategoryClick(category)
@@ -736,16 +864,53 @@ function CS.UI.CreatePanel()
     CampfireStokersDB.collapsedCategories = CampfireStokersDB.collapsedCategories or {}
     CampfireStokersDB.sendMode = CampfireStokersDB.sendMode or "SAY"
 
-    frame = CreateFrame("Frame", "CampfireStokersPanel", UIParent, "BackdropTemplate")
+    frame = CreateFrame("Frame", "CampfireStokersPanel", UIParent)
     frame:SetSize(PANEL_WIDTH, CONTROLS_MIN_HEIGHT + ROW_HEIGHT)
-    frame:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 12,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 },
-    })
-    frame:SetBackdropColor(0, 0, 0, 0.8)
+
+    -- Not a backdrop background: a backdrop's background color multiplies
+    -- its texture, so it can lower opacity but never raise it - the cause
+    -- of the once see-through panel and of the text popups' old
+    -- transparency (see addOpaqueUnderlay). Drawn as its own layers
+    -- instead: an opaque solid color, then the darkened parchment over it.
+    local backgroundFill = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+    backgroundFill:SetPoint("TOPLEFT", frame, "TOPLEFT", -WOOD_UNDERLAP, WOOD_UNDERLAP)
+    backgroundFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", WOOD_UNDERLAP, -WOOD_UNDERLAP)
+    backgroundFill:SetColorTexture(unpack(PALETTE.background))
+
+    local backgroundParchment = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
+    backgroundParchment:SetAllPoints(backgroundFill)
+    backgroundParchment:SetTexture(BACKGROUND_TEXTURE)
+    backgroundParchment:SetVertexColor(unpack(PALETTE.backgroundTexture))
+
+    -- The wood sits in a clipping frame inset by WOOD_RIM, which trims the
+    -- texture's metal rim off its outer edge. Both are above the panel's
+    -- rows so their edges tuck under the wood, and neither is
+    -- mouse-enabled, so they never block a click. Clipping is feature-
+    -- tested rather than assumed: without it the panel still works, just
+    -- with the rim showing.
+    local woodClip = CreateFrame("Frame", nil, frame)
+    woodClip:SetPoint("TOPLEFT", frame, "TOPLEFT", -WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET)
+    woodClip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", WOOD_VISIBLE_OUTSET, -WOOD_VISIBLE_OUTSET)
+    woodClip:SetFrameLevel(frame:GetFrameLevel() + 10)
+    if woodClip.SetClipsChildren then
+        woodClip:SetClipsChildren(true)
+    end
+
+    local woodBorder = CreateFrame("Frame", nil, woodClip, "BackdropTemplate")
+    woodBorder:SetPoint("TOPLEFT", frame, "TOPLEFT", -WOOD_OUTSET, WOOD_OUTSET)
+    woodBorder:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", WOOD_OUTSET, -WOOD_OUTSET)
+    woodBorder:SetBackdrop(WOOD_BORDER)
+
+    for _, corner in ipairs({ "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }) do
+        local cap = woodBorder:CreateTexture(nil, "OVERLAY")
+        cap:SetSize(WOOD_CORNER_CAP, WOOD_CORNER_CAP)
+        cap:SetPoint(corner, woodClip, corner)
+        cap:SetColorTexture(unpack(PALETTE.woodCorner))
+    end
+
     frame:SetClampedToScreen(true)
+    -- Clamp the wood, not just the panel inside it, to the screen.
+    frame:SetClampRectInsets(-WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET, -WOOD_VISIBLE_OUTSET)
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
@@ -754,7 +919,10 @@ function CS.UI.CreatePanel()
     if savedPosition then
         frame:SetPoint(savedPosition.point, UIParent, savedPosition.point, savedPosition.x, savedPosition.y)
     else
-        frame:SetPoint("BOTTOMLEFT", DEFAULT_CHAT_FRAME, "TOPLEFT", 0, 20)
+        -- Offset by the wood so the border, not just the panel inside it,
+        -- lines up with the chat window and clears it.
+        frame:SetPoint("BOTTOMLEFT", DEFAULT_CHAT_FRAME, "TOPLEFT", WOOD_VISIBLE_OUTSET,
+            20 + WOOD_VISIBLE_OUTSET)
     end
 
     frame:SetScript("OnDragStart", function(self)
@@ -770,12 +938,68 @@ function CS.UI.CreatePanel()
     -- what this floating, undecorated frame even is) and doubles as the
     -- expected place to grab it, since a title strip is the universal
     -- convention for "this is how you move this window."
+    -- The add-on's own TOC icon, trimmed of its built-in icon border.
+    local titleIcon = frame:CreateTexture(nil, "ARTWORK")
+    titleIcon:SetSize(TITLE_ICON_SIZE, TITLE_ICON_SIZE)
+    titleIcon:SetTexture("Interface/Icons/Spell_Fire_Fire")
+    titleIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    -- An ember glow flickering around the icon, on the same glow texture
+    -- as the profession buttons. Fire flickers rather than pulses, so each
+    -- step fades to a random brightness over a random short time, then
+    -- picks the next when it finishes. An animation group, not an OnUpdate
+    -- handler, and only running while the panel is shown.
+    local titleGlow = frame:CreateTexture(nil, "OVERLAY")
+    titleGlow:SetTexture("Interface/Buttons/UI-ActionButton-Border")
+    titleGlow:SetBlendMode("ADD")
+    titleGlow:SetSize(TITLE_GLOW_SIZE, TITLE_GLOW_SIZE)
+    titleGlow:SetPoint("CENTER", titleIcon, "CENTER")
+    titleGlow:SetVertexColor(unpack(PALETTE.header))
+
+    local emberFlicker = titleGlow:CreateAnimationGroup()
+    emberFlicker:SetToFinalAlpha(true)
+    local fade = emberFlicker:CreateAnimation("Alpha")
+    local glowAlpha = 1
+    local function nextFlicker()
+        local target = FLICKER_MIN_ALPHA + math.random() * (1 - FLICKER_MIN_ALPHA)
+        fade:SetFromAlpha(glowAlpha)
+        fade:SetToAlpha(target)
+        fade:SetDuration(FLICKER_MIN_SECONDS + math.random() * (FLICKER_MAX_SECONDS - FLICKER_MIN_SECONDS))
+        glowAlpha = target
+        emberFlicker:Play()
+    end
+    emberFlicker:SetScript("OnFinished", nextFlicker)
+    frame:SetScript("OnShow", nextFlicker)
+    frame:SetScript("OnHide", function()
+        emberFlicker:Stop()
+    end)
+
+    -- Icon and title centered as one unit: the text is offset right by
+    -- half the icon's width plus gap, and the icon hangs off its left.
     local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    titleText:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -10)
+    titleText:SetPoint("CENTER", frame, "TOP", (TITLE_ICON_SIZE + TITLE_ICON_TEXT_GAP) / 2,
+        -(TITLE_AREA_HEIGHT / 2))
     titleText:SetText(CS.Data.L.ui_panel_title)
+    titleText:SetTextColor(unpack(PALETTE.header))
+    titleIcon:SetPoint("RIGHT", titleText, "LEFT", -TITLE_ICON_TEXT_GAP, 0)
+
+    local titleDivider = frame:CreateTexture(nil, "ARTWORK")
+    titleDivider:SetHeight(1)
+    titleDivider:SetPoint("TOPLEFT", frame, "TOPLEFT", DIVIDER_INSET, -TITLE_AREA_HEIGHT + 2)
+    titleDivider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -DIVIDER_INSET, -TITLE_AREA_HEIGHT + 2)
+    titleDivider:SetColorTexture(unpack(PALETTE.divider))
+
+    professionDivider = frame:CreateTexture(nil, "ARTWORK")
+    professionDivider:SetHeight(1)
+    professionDivider:SetColorTexture(unpack(PALETTE.divider))
+    professionDivider:Hide()
 
     local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -6)
+    -- Centered on a title-row-sized square in the corner, so it lines up
+    -- with the title and its top and right margins match, then nudged in
+    -- a little more off the border.
+    local closeOffset = TITLE_AREA_HEIGHT / 2 + CLOSE_BUTTON_EXTRA_PADDING
+    closeButton:SetPoint("CENTER", frame, "TOPRIGHT", -closeOffset, -closeOffset)
     closeButton:SetScript("OnClick", CS.UI.Hide)
 
     -- Say/Yell as a two-state segmented control (both options always

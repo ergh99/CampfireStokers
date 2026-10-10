@@ -1175,3 +1175,38 @@ popup. Tried in-client first: the black layer made the prompt fully
 opaque, and redrawing the dialog texture on top of it changed nothing
 visible, so the result is effectively flat black. Confirmed after a
 reload; the player called it fine for now.
+
+## 2026-10-09 — Campfire panel look and feel
+
+Requested directly: an improved look for the campfire panel, starting
+from a palette sketch (`docs/CAMPFIRE_ADDON_CONTEXT.md`, untracked, whose
+member-list/chat assumptions were ignored). Worked through in-client
+round by round from screenshots:
+
+- Warm palette: ember-orange title and category headers, parchment
+  phrase text, leather dividers below the title and the profession
+  block. Title icon and text centered as one unit; profession icons
+  centered per row; close button centered in the title row.
+- Background: a backdrop's background color multiplies its texture, so
+  it can lower opacity but never raise it - the cause of the see-through
+  panel. Now an opaque solid layer plus
+  `UI-Achievement-Parchment-Horizontal` darkened by vertex color. Every
+  earlier textured background used a retail path assumed to exist and
+  never visibly rendered; a temporary in-client preview grid
+  (`/campfire textures`, since removed) confirmed which files actually
+  render before one was chosen.
+- Border: the achievement frame's wood (`UI-Achievement-WoodBorder`, a
+  standard backdrop edge file per Blizzard's own
+  `BACKDROP_ACHIEVEMENTS_0_64`), on its own frame 22 units outside the
+  panel so it surrounds rather than covers the content. Its built-in
+  gray metal rim is trimmed by a clipping frame (feature-tested
+  `SetClipsChildren`); the rim's leftover diagonal at each corner is
+  covered by a small dark cap (corner caps not yet confirmed in-client).
+- Rows: the old click feedback called `LockHighlight()` on rows with no
+  highlight texture, so it never showed. Rows now get an ember hover
+  wash and click flash using the quest-title highlight split into two
+  halves with `SetGradient` fades, soft on all four sides. Fire/glow
+  textures were trialed live on real rows and rejected: none fit the
+  row shape.
+- Title icon glow flickers (random alpha steps via a re-armed
+  AnimationGroup, running only while shown) instead of pulsing.

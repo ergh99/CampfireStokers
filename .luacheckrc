@@ -63,6 +63,7 @@ read_globals = {
     "C_Timer",
     "UnitExists",
     "GameTooltip",
+    "CreateColor",
 
     -- Options.lua. The two StaticPopupDialogs[...] keys this file writes
     -- are separately declared writable above (globals), same reasoning as
