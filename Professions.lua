@@ -5,38 +5,38 @@ CS.Professions = CS.Professions or {}
 
 local L = CS.Data.L
 
--- One entry per profession's tier-1 campfire good - a placeable object
+-- One entry per profession's tier-1 campfire feature - a placeable object
 -- that augments the sit-at-campfire buff for anyone who benefits from
 -- that fire, not just the player who placed it (Engineering's Reagent
 -- Bot is the one exception - interactable, spawns a vendor - but needs
 -- no special handling here; this add-on's job ends at use/craft/request
 -- regardless of what the object does after placement). Tiers 2/3 are
 -- out of scope - see docs/definition.md's Future Scope section. Cooking
--- is deliberately excluded: its tier-1 good (Basic Campfire Kit)
+-- is deliberately excluded: its tier-1 campfire feature (Basic Campfire Kit)
 -- creates the initial campfire rather than extending one, and this
 -- panel only ever shows when a campfire already exists. Data confirmed
--- in docs/research.txt; Tailoring is the one good with two real
+-- in docs/research.txt; Tailoring is the one campfire feature with two real
 -- underlying items (one per faction).
-CS.Professions.GOODS = {
-    { id = "fishing", itemName = L.pg_fishbowl, itemId = 279967, recipeSpellId = 1229745 },
-    { id = "alchemy", itemName = L.pg_manawell, itemId = 279956, recipeSpellId = 1230564 },
-    { id = "herbalism", itemName = L.pg_incensecandle, itemId = 279962, recipeSpellId = 1229705 },
-    { id = "firstaid", itemName = L.pg_firstaidkit, itemId = 279968, recipeSpellId = 1230117 },
-    { id = "enchanting", itemName = L.pg_enchantedlute, itemId = 279976, recipeSpellId = 1230643 },
-    { id = "leatherworking", itemName = L.pg_camptent, itemId = 279978, recipeSpellId = 1229432 },
-    { id = "engineering", itemName = L.pg_reagentbot, itemId = 279950, recipeSpellId = 1230656 },
-    { id = "blacksmithing", itemName = L.pg_sharpeningwheel, itemId = 279944, recipeSpellId = 1230171 },
+CS.Professions.FEATURES = {
+    { id = "fishing", itemName = L.feature_fishbowl, itemId = 279967, recipeSpellId = 1229745 },
+    { id = "alchemy", itemName = L.feature_manawell, itemId = 279956, recipeSpellId = 1230564 },
+    { id = "herbalism", itemName = L.feature_incensecandle, itemId = 279962, recipeSpellId = 1229705 },
+    { id = "firstaid", itemName = L.feature_firstaidkit, itemId = 279968, recipeSpellId = 1230117 },
+    { id = "enchanting", itemName = L.feature_enchantedlute, itemId = 279976, recipeSpellId = 1230643 },
+    { id = "leatherworking", itemName = L.feature_camptent, itemId = 279978, recipeSpellId = 1229432 },
+    { id = "engineering", itemName = L.feature_reagentbot, itemId = 279950, recipeSpellId = 1230656 },
+    { id = "blacksmithing", itemName = L.feature_sharpeningwheel, itemId = 279944, recipeSpellId = 1230171 },
     {
         id = "tailoring",
-        itemName = L.pg_factionbanner,
+        itemName = L.feature_factionbanner,
         itemId = { Alliance = 279973, Horde = 279972 },
         recipeSpellId = { Alliance = 1263425, Horde = 1229504 },
     },
-    { id = "mining", itemName = L.pg_lodestone, itemId = 279960, recipeSpellId = 1230161 },
-    { id = "skinning", itemName = L.pg_campchair, itemId = 279979, recipeSpellId = 1229517 },
+    { id = "mining", itemName = L.feature_lodestone, itemId = 279960, recipeSpellId = 1230161 },
+    { id = "skinning", itemName = L.feature_campchair, itemId = 279979, recipeSpellId = 1229517 },
 }
 
--- Pure: resolves a (possibly faction-variant) GOODS entry to concrete
+-- Pure: resolves a (possibly faction-variant) FEATURES entry to concrete
 -- itemId/recipeSpellId for this character. Only Tailoring's Faction
 -- Banner varies by faction; every other entry's ids are already plain
 -- numbers and pass through unchanged. `options.getFaction` defaults to
@@ -61,7 +61,7 @@ end
 -- Pure except for injected lookups (all default to the real
 -- C_TradeSkillUI/C_Item functions, matching the DI style
 -- Detection.EvaluateState/Send.Classify already use). Decides what
--- clicking this good's button would do right now, without doing it.
+-- clicking this campfire feature's button would do right now, without doing it.
 -- `options`:
 --   isRecipeProfessionLearned(id) defaults to C_TradeSkillUI.IsRecipeProfessionLearned
 --   getRecipeInfo(id)             defaults to C_TradeSkillUI.GetRecipeInfo
@@ -87,7 +87,7 @@ end
 --   { visible = true, action = "craft", recipeSpellId, icon, entry }
 --   { visible = true, action = "request", itemId, itemName, recipeSpellId,
 --     icon, missing = { { itemId, have, need, missingCount }, ... }, entry }
-function CS.Professions.EvaluateGood(entry, options)
+function CS.Professions.EvaluateFeature(entry, options)
     options = options or {}
 
     local isRecipeProfessionLearned = options.isRecipeProfessionLearned
@@ -162,8 +162,44 @@ function CS.Professions.EvaluateGood(entry, options)
     }
 end
 
+-- Reads one campfire feature's item cooldown. Placing any campfire
+-- feature puts every campfire feature's Use on one shared cooldown, so each item's own
+-- cooldown already reflects it - no grouping needed here. Returns
+-- start, duration while a cooldown is running, nil otherwise.
+-- `options`:
+--   getItemCooldown(id) -> start, duration, enable  defaults to
+--     C_Item.GetItemCooldown, falling back to C_Container.GetItemCooldown
+--     (retail has both; neither is confirmed on Forever yet).
+--   canAccessValue(v)  defaults to canaccessvalue. Cooldown data may be
+--     secret while addon restrictions are active; a value we can't read
+--     is treated as "no cooldown" rather than compared against.
+function CS.Professions.GetItemCooldown(itemId, options)
+    options = options or {}
+    local getItemCooldown = options.getItemCooldown
+        or (C_Item and C_Item.GetItemCooldown)
+        or (C_Container and C_Container.GetItemCooldown)
+    local canAccessValue = options.canAccessValue or canaccessvalue
+    if not getItemCooldown then
+        return nil
+    end
+
+    local start, duration, enable = getItemCooldown(itemId)
+    if canAccessValue and not (canAccessValue(start) and canAccessValue(duration) and canAccessValue(enable)) then
+        return nil
+    end
+    if type(start) ~= "number" or type(duration) ~= "number" or duration <= 0 then
+        return nil
+    end
+    -- Older clients return enable as 0/1, newer ones as a boolean; either
+    -- "off" value means the cooldown hasn't actually started counting.
+    if enable == false or enable == 0 then
+        return nil
+    end
+    return start, duration
+end
+
 -- Pure. "an" before a name starting with a vowel letter, "a" otherwise.
--- Letter-based, not sound-based: right for all 11 GOODS names ("an
+-- Letter-based, not sound-based: right for all 11 FEATURES names ("an
 -- Incense Candle", "an Enchanted Lute", "a" for the rest), none of which
 -- start with a silent "h" or a "you"-sounding "u"/"eu".
 function CS.Professions.IndefiniteArticle(name)
@@ -269,7 +305,7 @@ function CS.Professions.Craft(recipeSpellId, options)
     return "crafted"
 end
 
--- Fire-and-forget: touches C_Item.GetItemInfo for every good's item id
+-- Fire-and-forget: touches C_Item.GetItemInfo for every campfire feature's item id
 -- (both faction variants for Tailoring), and every one of their
 -- reagent item ids too, to start the client's async item-data cache
 -- fetch early rather than the first time a request message needs an
@@ -277,7 +313,7 @@ end
 -- a missing reagent's name/link fell back to placeholder text the
 -- first time they were ever referenced, before the cache caught up.
 -- Deliberately NOT gated on IsRecipeProfessionLearned (unlike
--- EvaluateGood) - confirmed in-client 2026-10-05: gating it that way
+-- EvaluateFeature) - confirmed in-client 2026-10-05: gating it that way
 -- silently skipped reagent warming entirely, because
 -- IsRecipeProfessionLearned isn't reliable this early in the login
 -- sequence (ADDON_LOADED fires before profession data is necessarily
@@ -286,11 +322,11 @@ end
 -- actual click time" instead, which is exactly the race this function
 -- exists to avoid. Recipe reagent *definitions* are static game data,
 -- not character-specific, so warming them unconditionally for all 11
--- goods costs a few harmless extra API calls and removes the timing
+-- campfire features costs a few harmless extra API calls and removes the timing
 -- dependency entirely. This narrows the remaining race (items are
 -- "seen" at ADDON_LOADED instead of at first use) but can't fully
 -- close it for an item referenced within the first moments after
--- login, before the fetch completes. `options` mirrors EvaluateGood's
+-- login, before the fetch completes. `options` mirrors EvaluateFeature's
 -- DI surface (getRecipeSchematic, getFaction) plus getItemInfo.
 function CS.Professions.WarmItemCache(options)
     options = options or {}
@@ -302,7 +338,7 @@ function CS.Professions.WarmItemCache(options)
     local getRecipeSchematic = options.getRecipeSchematic
         or (C_TradeSkillUI and C_TradeSkillUI.GetRecipeSchematic)
 
-    for _, entry in ipairs(CS.Professions.GOODS) do
+    for _, entry in ipairs(CS.Professions.FEATURES) do
         if type(entry.itemId) == "table" then
             for _, itemId in pairs(entry.itemId) do
                 getItemInfo(itemId)

@@ -60,24 +60,29 @@ local L = {
     ui_confirm = "Confirm",
     ui_cancel = "Cancel",
     ui_error_empty = "This can't be empty.",
+    ui_panel_style = "Panel style:",
+    style_campfire = "Campfire",
+    style_forever = "Forever",
 
-    -- Profession campfire goods (tier 1 only - see docs/definition.md's
+    -- Campfire features (tier 1 only - see docs/definition.md's
     -- Future Scope section). One per profession except Cooking, which
     -- creates the initial campfire rather than extending one.
-    pg_fishbowl = "Fish Bowl",
-    pg_manawell = "Mana Well",
-    pg_incensecandle = "Incense Candle",
-    pg_firstaidkit = "First Aid Kit",
-    pg_enchantedlute = "Enchanted Lute",
-    pg_camptent = "Camp Tent",
-    pg_reagentbot = "Reagent Bot",
-    pg_sharpeningwheel = "Sharpening Wheel",
-    pg_factionbanner = "Faction Banner",
-    pg_lodestone = "Lodestone",
-    pg_campchair = "Camp Chair",
-    pg_tooltip_craft = "will be crafted when you click (materials in your bags).",
-    pg_tooltip_request = "missing materials - clicking will yell a request for them.",
-    pg_request_not_ready = "still loading item data for this request - try again in a moment.",
+    feature_fishbowl = "Fish Bowl",
+    feature_manawell = "Mana Well",
+    feature_incensecandle = "Incense Candle",
+    feature_firstaidkit = "First Aid Kit",
+    feature_enchantedlute = "Enchanted Lute",
+    feature_camptent = "Camp Tent",
+    feature_reagentbot = "Reagent Bot",
+    feature_sharpeningwheel = "Sharpening Wheel",
+    feature_factionbanner = "Faction Banner",
+    feature_lodestone = "Lodestone",
+    feature_campchair = "Camp Chair",
+    feature_status_use = "Can place",
+    feature_status_craft = "Can craft",
+    feature_status_request = "Missing materials - click to yell a request",
+    feature_status_cooldown = "On cooldown",
+    feature_request_not_ready = "still loading item data for this request - try again in a moment.",
 }
 
 CS.Data.L = L

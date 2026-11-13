@@ -144,7 +144,7 @@ infrastructure; adds to them, doesn't replace them).
       test subset (see docs/research.txt and definition.md's "Confirmed
       via in-client research"). Profession detection is the bare
       `GetProfessions()`/`GetProfessionInfo()` globals, retail-shaped. The
-      campfire good for profession X is identified by `craftable` on
+      campfire recipe for profession X is identified by `craftable` on
       `C_TradeSkillUI.GetRecipeInfo(recipeSpellID)` - the craft spell ID
       doubles as the recipe ID directly, no separate lookup needed.
 - [x] In-client discovery: confirmed 2026-10-02. Silent, one-click crafting
@@ -172,7 +172,7 @@ infrastructure; adds to them, doesn't replace them).
       **Revised 2026-10-05**: `"AnyUp"` only broke item use with
       `ActionButtonUseKeyDown` on; now both are registered and
       `PreClick` ignores the press - see "Placing a prepared campfire
-      good does nothing" below.
+      feature does nothing" below.
       Implemented in `UI.lua`'s `createProfessionButton`/
       `layoutProfessionBlock`.
 - [x] In-client discovery: confirmed 2026-10-02. Reagent item IDs are
@@ -187,7 +187,7 @@ infrastructure; adds to them, doesn't replace them).
       same walk already needed to build the missing-materials list);
       `GetCraftableCount` isn't used at all.
 - [x] Proximity: resolved 2026-10-02 as a design decision, not an
-      in-client discovery - the crafted good enforces being at a
+      in-client discovery - the campfire feature enforces being at a
       campfire itself, but the panel should not rely on that alone. Gate
       each profession button's visibility/enabled state on the same
       `CS.Detection` at-fire boolean (spell `1229739`, the "Welcoming
@@ -197,7 +197,7 @@ infrastructure; adds to them, doesn't replace them).
       below.
 - [x] Confirmed 2026-10-02 (player domain knowledge): each profession has
       (at least) three reward tiers, functionally different per tier, not
-      "the same good, upgraded" - tier 1 is a placeable sit-buff
+      "the same campfire feature, upgraded" - tier 1 is a placeable sit-buff
       augmenter (for anyone at that fire, not just the placer; Engineering
       tier 1 is the one exception, an interactable vendor-spawner, which
       needs no special handling here - the add-on's job ends at
@@ -225,7 +225,7 @@ infrastructure; adds to them, doesn't replace them).
       not a partial list - no further profession discovery needed.
 - [x] Profession detection: superseded by a simpler design, confirmed
       2026-10-04 - `GetProfessions()`/`GetProfessionInfo()` are never
-      called at all. Since the 11 goods are a fixed, known list (not
+      called at all. Since the 11 campfire features are a fixed, known list (not
       open-ended discovery), `C_TradeSkillUI.IsRecipeProfessionLearned(
       recipeSpellId)` gates each one directly and was confirmed live to
       correctly distinguish a known profession (Skinning, `true`) from
@@ -233,13 +233,13 @@ infrastructure; adds to them, doesn't replace them).
       `GetRecipeInfo`'s `craftable` field, tried first, turned out to
       return `true` regardless of whether the profession is known at
       all, so it couldn't be used for this. Implemented in
-      `Professions.lua`'s `EvaluateGood`.
-- [x] The campfire panel shows one button per profession-crafted good the
+      `Professions.lua`'s `EvaluateFeature`.
+- [x] The campfire panel shows one button per campfire feature the
       character could plausibly use (skill >= 20), determined
       dynamically, not from a hardcoded list. Implemented: `UI.lua`'s
       `layoutProfessionBlock` lays out label-less icon buttons (one per
-      `CS.Professions.GOODS` entry) in a wrapped grid, visible only
-      when `EvaluateGood` says so.
+      `CS.Professions.FEATURES` entry) in a wrapped grid, visible only
+      when `EvaluateFeature` says so.
 - [x] Clicking a button, with no confirmation dialog at any step, matching
       this add-on's existing one-click philosophy: uses the item from bags
       if present; otherwise crafts if materials are present - in two
@@ -254,14 +254,14 @@ infrastructure; adds to them, doesn't replace them).
       &lt;item link&gt; at the campfire if someone wants to provide
       &lt;list of missing materials&gt;," with the item link and the
       missing-materials list both generated dynamically. Implemented in
-      `Professions.lua` (`EvaluateGood`, `BuildRequestMessage`, `Craft`)
+      `Professions.lua` (`EvaluateFeature`, `BuildRequestMessage`, `Craft`)
       and wired into `UI.lua`'s secure-button `PreClick` handler.
 - [x] Unit tests for whatever pure logic this produces (e.g. a
       Classify-style function deciding use/craft/request from bag-count
       inputs), following this project's established pattern of separating
       pure decision logic from the real API calls around it. Implemented
-      in `tests/professions_spec.lua` (`GOODS`, `ResolveEntry`,
-      `EvaluateGood`, `BuildRequestMessage` via dependency injection,
+      in `tests/professions_spec.lua` (`FEATURES`, `ResolveEntry`,
+      `EvaluateFeature`, `BuildRequestMessage` via dependency injection,
       `Craft`/`CreateEventFrame` via the same monkey-patch/fake-frame
       patterns `send_spec.lua`/`detection_spec.lua` already use).
 - [x] **Profession button visibility.** Observed in-client 2026-10-05
@@ -272,7 +272,7 @@ infrastructure; adds to them, doesn't replace them).
       visible until the delayed auto-close timer finishes. Also reported
       the same day (`docs/profession-button-appearance-findings.md`):
       the buttons are only ever shown or hidden as a whole. Today
-      `UI.lua`'s `evaluateGoodSafely` treats every button as hidden
+      `UI.lua`'s `evaluateFeatureSafely` treats every button as hidden
       whenever `CS.Detection.atFire` is false. **Desired** (the user's
       answers, recorded in that ledger): the profession buttons are
       shown whenever the panel is visible - including a panel opened
@@ -280,7 +280,7 @@ infrastructure; adds to them, doesn't replace them).
       auto-opens, the buttons are evaluated first, so the panel never
       appears without them or has them pop in afterwards ("Evaluated
       first").
-      **Done 2026-10-05**: `evaluateGoodSafely` no longer checks
+      **Done 2026-10-05**: `evaluateFeatureSafely` no longer checks
       `atFire`, and `CS.UI.Show` (manual open/toggle) now calls
       `CS.UI.Refresh()` before showing, as the auto-open path in
       `OnCampfireStateChanged` already did. Verified in-client (Round 11
@@ -294,13 +294,13 @@ infrastructure; adds to them, doesn't replace them).
       name in the generated message.
       **Done 2026-10-05, confirmed in-client ("confirmed working")**: new pure
       `CS.Professions.IndefiniteArticle(name)` ("an" before a vowel
-      letter, "a" otherwise - right for all 11 GOODS names, of which
+      letter, "a" otherwise - right for all 11 FEATURES names, of which
       only Incense Candle and Enchanted Lute take "an"), used by
       `BuildRequestMessage` with the item's plain name. Unit tests cover
-      both articles and every GOODS name.
-- [x] **Placing a prepared campfire good does nothing.** Reported
+      both articles and every FEATURES name.
+- [x] **Placing a prepared campfire feature does nothing.** Reported
       in-client 2026-10-05: clicking a profession button that should
-      place a good already in the bags (the "use" state) does nothing
+      place a campfire feature already in the bags (the "use" state) does nothing
       and shows no error. That path is the secure click-through set up
       in `UI.lua`'s `applyProfessionButtonState` (`type` = `"item"`,
       `item` = the item's name).
@@ -332,3 +332,12 @@ infrastructure; adds to them, doesn't replace them).
       a 10-link message far over 255 raw bytes. `Tree.lua`'s phrase
       editor still checks raw `#text`; unchanged, since it wasn't part
       of this report.
+- [x] **Profession buttons show the shared campfire feature cooldown.**
+      Placing any campfire feature puts every campfire feature's Use on
+      one shared cooldown, which the panel didn't show.
+      **Done 2026-10-14, confirmed in-client ("confirmed working as
+      expected")**: each profession button has a `CooldownFrameTemplate`
+      sweep with countdown numbers, set from
+      `CS.Professions.GetItemCooldown` on "use" buttons only, updated on
+      every Refresh and on `BAG_UPDATE_COOLDOWN`. Four new unit tests,
+      including one that fails if a secret cooldown value is compared.

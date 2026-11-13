@@ -555,7 +555,7 @@ oversight). The build is complete, released, and publicly downloadable.
 ## 2026-10-02 — Future-scope research: profession campfire enhancements
 
 Captured the profession-based campfire-enhancement feature (one
-craftable good per profession, used at a campfire to add combat buffs
+campfire feature per profession, used at a campfire to add combat buffs
 to the existing hour-long sit buff) as documentation only - see
 `definition.md`'s "Future Scope (v2)" section and `tasks.md`'s matching
 milestone - with fully silent, one-click auto-craft as the intended
@@ -623,7 +623,7 @@ summary; this is the "how we know" version):
   no cast-time interaction, no further click needed. **Crafting is not
   the hard part of this feature.**
 - **The actual hard part, discovered by contrast**: `C_Item.UseItemByName`
-  (using/placing the crafted good) cannot be called from ordinary
+  (using/placing the campfire feature) cannot be called from ordinary
   insecure Lua at all, including from inside a plain `Button`'s
   `OnClick` - confirmed live, it throws an error citing
   `SecureActionButtonTemplate` directly. This requires building that
@@ -640,7 +640,7 @@ summary; this is the "how we know" version):
   approach.
 
 **Proximity, resolved as a design decision rather than an in-client
-discovery**: the crafted good enforces being at a campfire through its
+discovery**: the campfire feature enforces being at a campfire through its
 own use-validation, but the panel shouldn't rely on that alone - the
 profession buttons should gate on the same signal already driving the
 rest of this panel, `CS.Detection`'s at-fire boolean (spell `1229739`).
@@ -724,7 +724,7 @@ profession not otherwise covered, and "camp furniture from hides" fits
 its flavor), but this is marked uncertain rather than asserted as fact.
 
 **Both remaining open items closed, same day**: Camp Chair is confirmed
-Skinning's tier-1 good directly (not just the reagent-based guess).
+Skinning's tier-1 campfire feature directly (not just the reagent-based guess).
 Inscription and Jewelcrafting were never actually missing data - they
 don't exist in Forever at all, having been added in The Burning Crusade
 and Wrath of the Lich King respectively. The 11 professions with
@@ -768,12 +768,12 @@ not just a simplification, since `.` now tracks the TOC's file list
 automatically (a new module no longer needs a separate manual `path`
 update, closing that sharp edge from T1).
 
-## 2026-10-04 — Profession campfire goods implemented
+## 2026-10-04 — Campfire features implemented
 
 Built the feature against the fully-resolved plan (see the research
 entries above). New `Professions.lua`, loaded between `Detection.lua`
-and `UI.lua`: `GOODS` (11 entries, Tailoring's Faction Banner carrying
-faction-variant ids), `ResolveEntry`, `EvaluateGood` (pure, DI-based,
+and `UI.lua`: `FEATURES` (11 entries, Tailoring's Faction Banner carrying
+faction-variant ids), `ResolveEntry`, `EvaluateFeature` (pure, DI-based,
 mirroring `Detection.EvaluateState`/`Send.Classify`), `BuildRequestMessage`,
 `Craft`, and `CreateEventFrame`. `UI.lua` gained 11 fixed
 `SecureActionButtonTemplate` buttons (not pooled, unlike phrase rows -
@@ -826,14 +826,14 @@ pass.
    (`PROFESSION_BLOCK_SIDE_PADDING`/`TOP_GAP`/`BOTTOM_GAP`, all 8px) give
    the block proper breathing room on every side.
 2. **Profession buttons could vanish permanently.** `layoutProfessionBlock`
-   had no error handling around each entry's `EvaluateGood` call. Under
+   had no error handling around each entry's `EvaluateFeature` call. Under
    rapid aura drop/reapply (the campfire aura is known to flap while the
    player sits still, see the auto-close grace-period work earlier in
    this log), a single entry throwing would abort the whole loop
    mid-iteration, leaving every button after the failure point stuck in
    whatever Show/Hide state it had - and since nothing retried, they
    stayed hidden indefinitely. Fixed: each entry's evaluation is now
-   `pcall`-wrapped (`evaluateGoodSafely`); a thrown error is reported to
+   `pcall`-wrapped (`evaluateFeatureSafely`); a thrown error is reported to
    chat (not silently swallowed) and treated as "not visible" for just
    that one entry, not the whole block.
 3. **Request message showed plain text, not a link, for the main
@@ -848,8 +848,8 @@ pass.
    main item (its 2nd return, the link) and every missing reagent's name
    (1st return), so there's one cache behavior to account for, not two.
    Added `CS.Professions.WarmItemCache()`, called once at `ADDON_LOADED`,
-   that proactively touches every good's item id *and* every learned
-   recipe's reagent item ids, to start that fetch early instead of at
+   that proactively touches every campfire feature's item id *and* every learned
+   campfire recipe's reagent item ids, to start that fetch early instead of at
    first use. This narrows the race substantially but can't fully close
    it for an item referenced in the first moments after login.
 4. **`GetCraftableCount` returned `0` while materials were abundant -
@@ -863,7 +863,7 @@ pass.
    `GetCraftableCount` as a signal entirely** - the original research
    pass treated it as confirmed reliable (real reagent-ratio math, 14
    against 14/17 reagents), which was true for that one test case but
-   didn't generalize. `EvaluateGood` no longer calls it at all: the
+   didn't generalize. `EvaluateFeature` no longer calls it at all: the
    schematic-vs-bag-count walk (already needed to build the
    missing-materials list) is now the *only* signal for craft-vs-request
    - if that walk finds nothing missing, the action is "craft," full
@@ -876,7 +876,7 @@ pass.
 5. **Location was wrong in a different way than the sizing fix
    addressed.** The profession block sat between the Say/Yell toggle
    and the phrase tree it actually controls - confusing, since
-   profession goods always yell regardless of that toggle, so having
+   campfire feature requests always yell regardless of that toggle, so having
    them visually sandwiched inside the Say/Yell-to-phrases relationship
    implied a connection that doesn't exist. Fixed by moving the block
    above Say/Yell instead: Title -> profession block (if any) -> Say/Yell
@@ -894,7 +894,7 @@ pass.
    `BuildRequestMessage` now returns `nil` - not a message containing
    `"item <id>"` - if any missing reagent's name can't be resolved;
    the `PreClick` handler checks for `nil` and reports locally
-   (`CS.Data.L.pg_request_not_ready`) instead of ever sending.
+   (`CS.Data.L.feature_request_not_ready`) instead of ever sending.
 
 Verified clean after all six fixes: syntax, `luacheck .` (0 warnings),
 all 102 tests, and `wow-secret-lint@1.9.0` (`filesScanned: 9`,
@@ -1047,7 +1047,7 @@ What the ledger shows:
   with the frame left shown in between, crafted in that Blacksmithing
   state (Rounds 10, 14), from the real secure test button (Round 15),
   at the campfire with the add-on's panel open (Round 16), and from the
-  add-on's own profession-good button (Round 17). Hiding the frame
+  add-on's own campfire feature button (Round 17). Hiding the frame
   between the two inputs broke it (Round 13).
 
 **Decision** (player's choice, with the frame visible between clicks as
@@ -1098,7 +1098,7 @@ aura dropped (Round 17 of the crafting ledger) and never showed on a
 manual open away from a fire; and a manual open never refreshed, showing
 whatever the last refresh laid out. The player's decision: the buttons
 show whenever the panel is visible, and are evaluated before it is
-shown. `evaluateGoodSafely` no longer checks `atFire`, and `CS.UI.Show`
+shown. `evaluateFeatureSafely` no longer checks `atFire`, and `CS.UI.Show`
 refreshes before showing. Verified in-client across auto-open, aura drop
 and manual open (Round 11). `docs/definition.md`'s proximity note
 records the change.
@@ -1112,7 +1112,7 @@ Reported in-client: the request yell read "I can place a/an <item>"
 literally. New pure `CS.Professions.IndefiniteArticle(name)` returns
 "an" before a vowel letter and "a" otherwise, and `BuildRequestMessage`
 uses it with the item's plain name. Letter-based rather than
-sound-based, which is right for all 11 goods (only Incense Candle and
+sound-based, which is right for all 11 campfire features (only Incense Candle and
 Enchanted Lute take "an"). Three new unit tests; the three existing
 message tests now expect "a" for Fish Bowl. Confirmed in-client by the
 player: "confirmed working". Verified clean: syntax, `luacheck .`
@@ -1135,9 +1135,9 @@ registering both fired `PreClick` twice per click.
 so craft and request still run once per click on the release (where
 craft was verified in the crafting ledger's Rounds 15-17). Verified
 in-client: use, craft (two clicks) and request each worked once per
-click (Round 3). The player noted that placing a campfire good starts a
+click (Round 3). The player noted that placing a campfire feature starts a
 one-hour cooldown, and that only the Basic Campfire Kit uses a ground
-target; the other goods cast and appear at the character's feet.
+target; the other campfire features cast and appear at the character's feet.
 
 Found during Round 3, not fixed here: the Fishing and First Aid request
 yells were refused by the 255-character check, apparently because item
@@ -1210,3 +1210,53 @@ round by round from screenshots:
   row shape.
 - Title icon glow flickers (random alpha steps via a re-armed
   AnimationGroup, running only while shown) instead of pulsing.
+
+## 2026-10-14 — Campfire feature cooldown and canonical names
+
+Placing any campfire feature puts every campfire feature's Use on one
+shared cooldown. Each profession button now carries a
+`CooldownFrameTemplate` sweep with countdown numbers forced on.
+`CS.Professions.GetItemCooldown` reads the item's own cooldown (the
+shared cooldown means no grouping is needed), trying
+`C_Item.GetItemCooldown` and falling back to
+`C_Container.GetItemCooldown`, and treats a value `canaccessvalue`
+rejects as no cooldown. Only "use" buttons show it: crafting and
+requesting still work during the cooldown. `BAG_UPDATE_COOLDOWN`
+registration is pcall-guarded since registering an unknown event throws
+on this build. Confirmed in-client by the player: "confirmed working as
+expected."
+
+Naming: the game calls the placeable items **campfire features** and
+the profession recipes that make them **campfire recipes**. Code and
+living docs now use those names instead of the earlier "campfire
+goods"/"profession goods": `CS.Professions.GOODS` became `FEATURES`,
+`EvaluateGood` became `EvaluateFeature`, and the `pg_` locale keys
+became `feature_`. Verbatim findings ledgers and quotes of earlier
+wording in this log are left as recorded.
+
+## 2026-10-14 — Panel style option and default position
+
+The options panel gains a panel style dropdown (Blizzard_Menu's
+`WowStyle1DropdownTemplate`, pcall-wrapped since it isn't confirmed on
+Forever). Two styles:
+
+- **Campfire**: the warm look from the entry above.
+- **Forever** (the default): built on Blizzard's `PortraitFrameTemplate`,
+  the template behind the Auction House and profession windows, for its
+  border, title bar, rock background, round portrait and close button,
+  with gold category headers on a dark bar and white phrase text. The
+  template is built under `pcall`; if it fails, the panel falls back to
+  the Campfire look.
+
+Switching applies immediately. Colors moved from one fixed palette to a
+per-style table (`LOOKS` in UI.lua). A saved `panelStyle` of `"default"`,
+this style's id before it was renamed Forever, is converted to
+`"forever"`.
+
+The panel's default position moved from above the chat window to the
+right half of the screen: crafting a campfire recipe from the panel
+opens the profession window anchored to the left, which covered the
+panel at its old spot. `DEFAULT_CHAT_FRAME` is no longer read.
+
+In-client confirmation of the dropdown and portrait template on Forever
+wasn't recorded at the time.

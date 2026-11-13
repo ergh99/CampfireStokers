@@ -19,7 +19,7 @@ effect (cast bar + character animation) when the correct profession is
 already "active" on the client. There is a persistent, client-side
 "which profession is active" state, separate from which panel is
 currently visually shown, that this project has not found any reliable
-way to set programmatically. The profession campfire-goods feature's
+way to set programmatically. The campfire-features feature's
 "craft" action (`Professions.lua`'s `Craft` function) depends on being
 able to do this silently/automatically - that is currently unverified
 to work except in the one lucky case where the target profession
@@ -130,7 +130,7 @@ This project's own real `Professions.lua` module (not test code) was
 already fully built and loaded throughout every test in this
 investigation. `CS.Professions.CreateEventFrame` refreshes the real
 campfire panel on every `BAG_UPDATE_DELAYED`, and that refresh calls
-`EvaluateGood` for all 11 known campfire goods - which calls
+`EvaluateFeature` for all 11 known campfire features - which calls
 `C_TradeSkillUI.GetRecipeInfo` and `GetRecipeSchematic` for every one of
 them, repeatedly, in the background, independent of whatever manual
 test is being performed, whenever the campfire panel is open (i.e.

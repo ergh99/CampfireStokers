@@ -59,7 +59,6 @@ read_globals = {
 
     -- UI.lua
     "UIParent",
-    "DEFAULT_CHAT_FRAME",
     "C_Timer",
     "UnitExists",
     "GameTooltip",
@@ -79,6 +78,7 @@ read_globals = {
     "InCombatLockdown",
     "UnitFactionGroup",
     "ProfessionsFrame",
+    "C_Container",
 }
 
 -- tests/ mocks real WoW API globals by assigning directly over them (e.g.

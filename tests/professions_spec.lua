@@ -10,14 +10,14 @@ local function loadProfessions()
     return CS
 end
 
--- GOODS sanity
+-- FEATURES sanity
 
-tests["GOODS has 11 entries with unique ids and non-empty names"] = function()
+tests["FEATURES has 11 entries with unique ids and non-empty names"] = function()
     local CS = loadProfessions()
-    assert(#CS.Professions.GOODS == 11)
+    assert(#CS.Professions.FEATURES == 11)
 
     local seenIds = {}
-    for _, entry in ipairs(CS.Professions.GOODS) do
+    for _, entry in ipairs(CS.Professions.FEATURES) do
         assert(not seenIds[entry.id], "duplicate id: " .. tostring(entry.id))
         seenIds[entry.id] = true
         assert(type(entry.itemName) == "string" and #entry.itemName > 0)
@@ -26,7 +26,7 @@ end
 
 tests["only Tailoring's ids are faction-variant tables"] = function()
     local CS = loadProfessions()
-    for _, entry in ipairs(CS.Professions.GOODS) do
+    for _, entry in ipairs(CS.Professions.FEATURES) do
         if entry.id == "tailoring" then
             assert(type(entry.itemId) == "table" and entry.itemId.Alliance and entry.itemId.Horde)
             assert(type(entry.recipeSpellId) == "table" and entry.recipeSpellId.Alliance
@@ -80,7 +80,7 @@ tests["ResolveEntry falls back to Alliance for an unrecognized faction"] = funct
     assert(itemId == 1 and recipeSpellId == 10)
 end
 
--- EvaluateGood
+-- EvaluateFeature
 
 local TEST_ENTRY = { id = "test", itemName = "Test Item", itemId = 999, recipeSpellId = 5555 }
 
@@ -97,23 +97,23 @@ local function baseGoodOptions(overrides)
     return options
 end
 
-tests["EvaluateGood is invisible when the profession isn't learned"] = function()
+tests["EvaluateFeature is invisible when the profession isn't learned"] = function()
     local CS = loadProfessions()
-    local result = CS.Professions.EvaluateGood(TEST_ENTRY, baseGoodOptions({
+    local result = CS.Professions.EvaluateFeature(TEST_ENTRY, baseGoodOptions({
         isRecipeProfessionLearned = function() return false end,
     }))
     assert(result.visible == false)
 end
 
-tests["EvaluateGood is invisible when the required APIs aren't available at all"] = function()
+tests["EvaluateFeature is invisible when the required APIs aren't available at all"] = function()
     local CS = loadProfessions()
-    local result = CS.Professions.EvaluateGood(TEST_ENTRY, {})
+    local result = CS.Professions.EvaluateFeature(TEST_ENTRY, {})
     assert(result.visible == false)
 end
 
-tests["EvaluateGood returns use when the item is already owned"] = function()
+tests["EvaluateFeature returns use when the item is already owned"] = function()
     local CS = loadProfessions()
-    local result = CS.Professions.EvaluateGood(TEST_ENTRY, baseGoodOptions({
+    local result = CS.Professions.EvaluateFeature(TEST_ENTRY, baseGoodOptions({
         getItemCount = function(id) return id == 999 and 2 or 0 end,
     }))
     assert(result.visible == true)
@@ -123,10 +123,10 @@ tests["EvaluateGood returns use when the item is already owned"] = function()
     assert(result.icon == 12345)
 end
 
-tests["EvaluateGood returns craft when not owned but materials are on hand"] = function()
+tests["EvaluateFeature returns craft when not owned but materials are on hand"] = function()
     local CS = loadProfessions()
     local counts = { [111] = 46, [222] = 62 }
-    local result = CS.Professions.EvaluateGood(TEST_ENTRY, baseGoodOptions({
+    local result = CS.Professions.EvaluateFeature(TEST_ENTRY, baseGoodOptions({
         getItemCount = function(id) return counts[id] or 0 end,
         getRecipeSchematic = function()
             return {
@@ -148,9 +148,9 @@ end
 -- for reasons unrelated to materials and must not be trusted. This is
 -- exactly that scenario: plenty of both reagents, so the result must
 -- be "craft," never "request" with an empty list.
-tests["EvaluateGood returns craft, not an empty request, when reagents are abundant"] = function()
+tests["EvaluateFeature returns craft, not an empty request, when reagents are abundant"] = function()
     local CS = loadProfessions()
-    local result = CS.Professions.EvaluateGood(TEST_ENTRY, baseGoodOptions({
+    local result = CS.Professions.EvaluateFeature(TEST_ENTRY, baseGoodOptions({
         getItemCount = function(id)
             if id == 2835 then return 46 end
             if id == 2840 then return 62 end
@@ -169,10 +169,10 @@ tests["EvaluateGood returns craft, not an empty request, when reagents are abund
     assert(result.action == "craft")
 end
 
-tests["EvaluateGood returns request with the correct missing list when materials are short"] = function()
+tests["EvaluateFeature returns request with the correct missing list when materials are short"] = function()
     local CS = loadProfessions()
     local counts = { [111] = 1, [222] = 0 }
-    local result = CS.Professions.EvaluateGood(TEST_ENTRY, baseGoodOptions({
+    local result = CS.Professions.EvaluateFeature(TEST_ENTRY, baseGoodOptions({
         getItemCount = function(id) return counts[id] or 0 end,
         getRecipeSchematic = function()
             return {
@@ -263,13 +263,13 @@ tests["BuildRequestMessage uses \"an\" for an item name starting with a vowel"] 
     assert(message:find("I can place an [Incense Candle] at", 1, true) ~= nil)
 end
 
-tests["IndefiniteArticle picks \"an\" only for the two vowel-initial GOODS names"] = function()
+tests["IndefiniteArticle picks \"an\" only for the two vowel-initial FEATURES names"] = function()
     local CS = loadProfessions()
     local expected = {
-        [CS.Data.L.pg_incensecandle] = "an",
-        [CS.Data.L.pg_enchantedlute] = "an",
+        [CS.Data.L.feature_incensecandle] = "an",
+        [CS.Data.L.feature_enchantedlute] = "an",
     }
-    for _, entry in ipairs(CS.Professions.GOODS) do
+    for _, entry in ipairs(CS.Professions.FEATURES) do
         local want = expected[entry.itemName] or "a"
         assert(CS.Professions.IndefiniteArticle(entry.itemName) == want,
             entry.itemName .. " should take '" .. want .. "'")
@@ -300,7 +300,57 @@ tests["BuildRequestMessage returns nil rather than leak a missing reagent's bare
     assert(message == nil)
 end
 
--- Craft: DI, same style as EvaluateGood/BuildRequestMessage. Two-click
+-- GetItemCooldown: DI, same style as EvaluateFeature.
+
+local function readable() return true end
+
+tests["GetItemCooldown returns start and duration while a cooldown runs"] = function()
+    local CS = loadProfessions()
+    local start, duration = CS.Professions.GetItemCooldown(279967, {
+        getItemCooldown = function(id)
+            assert(id == 279967)
+            return 100, 300, true
+        end,
+        canAccessValue = readable,
+    })
+    assert(start == 100 and duration == 300)
+end
+
+tests["GetItemCooldown returns nil with no cooldown running"] = function()
+    local CS = loadProfessions()
+    assert(CS.Professions.GetItemCooldown(279967, {
+        getItemCooldown = function() return 0, 0, true end,
+        canAccessValue = readable,
+    }) == nil)
+end
+
+tests["GetItemCooldown treats a not-yet-enabled cooldown as none, boolean or numeric"] = function()
+    local CS = loadProfessions()
+    for _, enable in ipairs({ false, 0 }) do
+        assert(CS.Professions.GetItemCooldown(279967, {
+            getItemCooldown = function() return 100, 300, enable end,
+            canAccessValue = readable,
+        }) == nil)
+    end
+    assert(CS.Professions.GetItemCooldown(279967, {
+        getItemCooldown = function() return 100, 300, 1 end,
+        canAccessValue = readable,
+    }) == 100)
+end
+
+tests["GetItemCooldown never compares a secret value"] = function()
+    local CS = loadProfessions()
+    local secret = setmetatable({}, {
+        __lt = function() error("compared a secret value") end,
+        __le = function() error("compared a secret value") end,
+    })
+    assert(CS.Professions.GetItemCooldown(279967, {
+        getItemCooldown = function() return secret, secret, true end,
+        canAccessValue = function(value) return value ~= secret end,
+    }) == nil)
+end
+
+-- Craft: DI, same style as EvaluateFeature/BuildRequestMessage. Two-click
 -- sequence per docs/craft-profession-switch-findings.md Rounds 14-16:
 -- first click OpenRecipe only, second click (frame still shown) does
 -- CraftRecipe -> hide the frame.
@@ -390,14 +440,14 @@ end
 
 -- WarmItemCache
 
-tests["WarmItemCache touches every good's item id, including both Tailoring variants"] = function()
+tests["WarmItemCache touches every campfire feature's item id, including both Tailoring variants"] = function()
     local CS = loadProfessions()
     local touched = {}
     CS.Professions.WarmItemCache({
         getItemInfo = function(itemId) touched[itemId] = true end,
     })
 
-    for _, entry in ipairs(CS.Professions.GOODS) do
+    for _, entry in ipairs(CS.Professions.FEATURES) do
         if type(entry.itemId) == "table" then
             assert(touched[entry.itemId.Alliance], "Alliance variant should be touched")
             assert(touched[entry.itemId.Horde], "Horde variant should be touched")
@@ -408,12 +458,12 @@ tests["WarmItemCache touches every good's item id, including both Tailoring vari
 end
 
 -- Confirmed in-client 2026-10-05: gating this on IsRecipeProfessionLearned
--- (like EvaluateGood does) silently skipped reagent warming entirely,
+-- (like EvaluateFeature does) silently skipped reagent warming entirely,
 -- since that check isn't reliable this early in the login sequence.
 -- Reagent definitions are static game data, not character-specific, so
--- this now warms them for every good unconditionally - no learned-gate
+-- this now warms them for every campfire feature unconditionally - no learned-gate
 -- to test around.
-tests["WarmItemCache touches every good's reagent item ids too, regardless of learned status"] = function()
+tests["WarmItemCache touches every campfire feature's reagent item ids too, regardless of learned status"] = function()
     local CS = loadProfessions()
     local touched = {}
     CS.Professions.WarmItemCache({

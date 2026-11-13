@@ -19,18 +19,14 @@ local PROFESSION_ICON_SIZE = 64
 -- docs/profession-button-appearance-findings.md).
 local PROFESSION_GLOW_SIZE = 110
 local PROFESSION_ICON_GAP = 8
+-- The global cooldown is at most 1.5 seconds; an item cooldown this short
+-- or shorter is that, not the shared campfire feature cooldown.
+local GLOBAL_COOLDOWN_MAX_SECONDS = 1.5
 local PROFESSION_BLOCK_SIDE_PADDING = 8
-local PROFESSION_BLOCK_TOP_GAP = 8
-local PROFESSION_BLOCK_BOTTOM_GAP = 8
--- Title area, then the profession button block (if any), THEN Say/Yell,
--- then the phrase tree - profession goods always yell regardless of the
--- Say/Yell toggle, so they sit above it, not sandwiched between it and
--- the phrases it actually controls (reported as confusing placement
--- during in-client testing).
-local TITLE_AREA_HEIGHT = 46
 local SAY_YELL_HEIGHT = 20
 local SAY_YELL_BOTTOM_GAP = 10
-local CONTROLS_MIN_HEIGHT = TITLE_AREA_HEIGHT + SAY_YELL_HEIGHT + SAY_YELL_BOTTOM_GAP
+-- The campfire style's title area (see LOOKS for each style's own).
+local CAMPFIRE_TITLE_AREA_HEIGHT = 46
 local TITLE_ICON_SIZE = 28
 local TITLE_ICON_TEXT_GAP = 10
 -- Same glow texture and padding ratio as PROFESSION_GLOW_SIZE (110/64).
@@ -69,20 +65,73 @@ local CLOSE_BUTTON_EXTRA_PADDING = 2
 
 -- Warm "campfire" theme on stock Blizzard textures, tinted rather than
 -- replaced so the panel still sits comfortably beside the default UI.
-local PALETTE = {
-    background = { 0.165, 0.102, 0.063, 1 }, -- warm charcoal-brown #2A1A10
-    -- Multiplies the parchment (mean color ~155,110,46 measured from an
-    -- in-client capture) down to ~52,34,20, keeping its grain and stains.
-    backgroundTexture = { 0.34, 0.31, 0.43 },
-    divider = { 0.549, 0.376, 0.224, 0.6 }, -- worn leather #8C6039
-    woodCorner = { 0.03, 0.02, 0.01, 1 }, -- the wood border's dark corners
-    header = { 0.910, 0.514, 0.227 }, -- ember orange #E8833A
-    text = { 0.902, 0.835, 0.690 }, -- parchment #E6D5B0
-    textNeedsTarget = { 0.55, 0.50, 0.42 }, -- dimmed parchment
-    textFlagged = { 0.7, 0.35, 0.35 },
-    rowHover = { 0.910, 0.514, 0.227, 0.35 },
-    rowFlash = { 0.910, 0.514, 0.227, 0.8 },
+-- Each style's look: its colors, plus the few layout values that differ
+-- between styles. `look` (below) is whichever one is active.
+local LOOKS = {
+    campfire = {
+        -- Title area, then the profession button block (if any), THEN
+        -- Say/Yell, then the phrase tree - campfire feature requests always yell
+        -- regardless of the Say/Yell toggle, so they sit above it, not
+        -- sandwiched between it and the phrases it actually controls
+        -- (reported as confusing placement during in-client testing).
+        titleAreaHeight = CAMPFIRE_TITLE_AREA_HEIGHT,
+        -- Space above and below the profession button block.
+        professionBlockGap = 8,
+        background = { 0.165, 0.102, 0.063, 1 }, -- warm charcoal-brown #2A1A10
+        -- Multiplies the parchment (mean color ~155,110,46 measured from an
+        -- in-client capture) down to ~52,34,20, keeping its grain and stains.
+        backgroundTexture = { 0.34, 0.31, 0.43 },
+        divider = { 0.549, 0.376, 0.224, 0.6 }, -- worn leather #8C6039
+        woodCorner = { 0.03, 0.02, 0.01, 1 }, -- the wood border's dark corners
+        header = { 0.910, 0.514, 0.227 }, -- ember orange #E8833A
+        text = { 0.902, 0.835, 0.690 }, -- parchment #E6D5B0
+        textNeedsTarget = { 0.55, 0.50, 0.42 }, -- dimmed parchment
+        textFlagged = { 0.7, 0.35, 0.35 },
+        rowHover = { 0.910, 0.514, 0.227, 0.35 },
+        rowFlash = { 0.910, 0.514, 0.227, 0.8 },
+    },
+    -- Matches the default UI's own frames (the Auction House and profession
+    -- windows): Blizzard's portrait frame for the border, title bar, round
+    -- portrait and close button, standard gold headers on a dark bar with
+    -- the collapse control on the right like the profession list's section
+    -- headers, and white entries with a plain white hover.
+    forever = {
+        -- Just below the template's title bar, so the profession icons sit
+        -- evenly between it and the divider below them.
+        titleAreaHeight = 22,
+        professionBlockGap = 12,
+        -- The round portrait hangs below the title bar at the left edge.
+        -- The icons are centered and clear it, but Say/Yell sits at the
+        -- left, so it never starts higher than this.
+        portraitClearance = 60,
+        divider = { 1, 0.82, 0, 0.25 },
+        header = { 1, 0.82, 0 }, -- the default UI's header gold
+        headerBar = { 0.17, 0.11, 0.04, 0.9 },
+        headerLine = { 0.55, 0.42, 0.12, 1 },
+        collapseOnRight = true,
+        text = { 1, 1, 1 },
+        textNeedsTarget = { 0.5, 0.5, 0.5 },
+        textFlagged = { 0.7, 0.35, 0.35 },
+        rowHover = { 1, 1, 1, 0.3 },
+        rowFlash = { 1, 1, 1, 0.7 },
+    },
 }
+local look = LOOKS.campfire
+
+-- The panel styles offered in the options panel, in display order. A
+-- style marked `placeholder = true` is listed but shown disabled, so it
+-- can't be selected yet.
+CS.UI.STYLES = {
+    { id = "campfire", labelKey = "style_campfire" },
+    { id = "forever", labelKey = "style_forever" },
+}
+CS.UI.DEFAULT_STYLE = "forever"
+
+-- How far the portrait frame's border sits outside the panel's content on
+-- the left, right and bottom; its title bar is inside the title area.
+-- The portrait itself overhangs the frame's top-left corner.
+local FOREVER_FRAME_OUTSET = 6
+local FOREVER_PORTRAIT_OVERHANG = 8
 
 -- Confirmed present and rendering in this client via `/campfire textures`
 -- (file 130661); every earlier background path was assumed, never seen.
@@ -102,6 +151,13 @@ local previousProfessionBlockHeight = 0
 local combatFlushFrame
 local professionBlockDirty = false
 local professionDivider
+-- Built in CreatePanel: every region and frame making up the campfire
+-- style's look, the Forever style's portrait frame (nil if it couldn't be
+-- built), and the title glow's flicker controls.
+local campfireChrome = {}
+local foreverChrome
+local startFlicker
+local stopFlicker
 
 CS.UI.isAutoOpened = false
 
@@ -114,12 +170,9 @@ end
 
 -- The highlight texture already fades at its ends but has hard top and
 -- bottom edges, so it's drawn as two halves, each with a vertex-color
--- gradient fading to transparent at its outer edge.
-local function createSoftBand(row, layer, color)
-    local r, g, b, a = unpack(color)
-    local solid = CreateColor(r, g, b, a)
-    local clear = CreateColor(r, g, b, 0)
-
+-- gradient fading to transparent at its outer edge. Colored separately
+-- (colorSoftBand) so a pooled row picks up a style change.
+local function createSoftBand(row, layer)
     local top = row:CreateTexture(nil, layer)
     top:SetPoint("TOPLEFT")
     top:SetPoint("TOPRIGHT")
@@ -127,7 +180,6 @@ local function createSoftBand(row, layer, color)
     top:SetTexture(ROW_HIGHLIGHT_TEXTURE)
     top:SetTexCoord(0, 1, 0, 0.5)
     top:SetBlendMode("ADD")
-    top:SetGradient("VERTICAL", solid, clear) -- bottom color, then top
 
     local bottom = row:CreateTexture(nil, layer)
     bottom:SetPoint("BOTTOMLEFT")
@@ -136,9 +188,16 @@ local function createSoftBand(row, layer, color)
     bottom:SetTexture(ROW_HIGHLIGHT_TEXTURE)
     bottom:SetTexCoord(0, 1, 0.5, 1)
     bottom:SetBlendMode("ADD")
-    bottom:SetGradient("VERTICAL", clear, solid)
 
     return { top, bottom }
+end
+
+local function colorSoftBand(band, color)
+    local r, g, b, a = unpack(color)
+    local solid = CreateColor(r, g, b, a)
+    local clear = CreateColor(r, g, b, 0)
+    band[1]:SetGradient("VERTICAL", solid, clear) -- bottom color, then top
+    band[2]:SetGradient("VERTICAL", clear, solid)
 end
 
 local function setBandAlpha(band, alpha)
@@ -164,28 +223,43 @@ local function acquireRow()
         -- collapsible sections.
         row.collapseIcon = CreateFrame("Button", nil, row)
         row.collapseIcon:SetSize(16, 16)
-        row.collapseIcon:SetPoint("LEFT", row, "LEFT", 6, 0)
         row.collapseIcon:SetHighlightTexture("Interface/Buttons/UI-PlusButton-Hilight", "ADD")
 
         row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         row.text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
         row.text:SetJustifyH("LEFT")
 
-        -- A soft ember wash on hover. Rows never had a highlight texture,
-        -- so the old LockHighlight() click feedback had nothing to show.
-        row.hover = createSoftBand(row, "HIGHLIGHT", PALETTE.rowHover)
-        row.flash = createSoftBand(row, "BACKGROUND", PALETTE.rowFlash)
+        -- A soft wash on hover. Rows never had a highlight texture, so
+        -- the old LockHighlight() click feedback had nothing to show.
+        row.hover = createSoftBand(row, "HIGHLIGHT")
+        row.flash = createSoftBand(row, "BACKGROUND")
+
+        -- The Forever style's category header bar: a dark fill with a
+        -- gold rule along its bottom, like the profession list's section
+        -- headers. Shown only on header rows of a style with a headerBar.
+        row.headerBar = row:CreateTexture(nil, "BACKGROUND", nil, -1)
+        row.headerBar:SetAllPoints()
+        row.headerLine = row:CreateTexture(nil, "BORDER")
+        row.headerLine:SetHeight(1)
+        row.headerLine:SetPoint("BOTTOMLEFT")
+        row.headerLine:SetPoint("BOTTOMRIGHT")
     end
 
+    colorSoftBand(row.hover, look.rowHover)
+    colorSoftBand(row.flash, look.rowFlash)
     setBandAlpha(row.hover, 1)
     setBandShown(row.flash, false)
+    row.headerBar:Hide()
+    row.headerLine:Hide()
+    row.collapseIcon:ClearAllPoints()
+    row.collapseIcon:SetPoint("LEFT", row, "LEFT", 6, 0)
     row.collapseIcon:Hide()
     row.collapseIcon:SetScript("OnClick", nil)
     row.text:ClearAllPoints()
     row.text:SetPoint("LEFT", row, "LEFT", 4, 0)
     row.text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     row.text:SetFontObject("GameFontHighlight")
-    row.text:SetTextColor(unpack(PALETTE.text))
+    row.text:SetTextColor(unpack(look.text))
     row.phrase = nil
     row.needsTarget = nil
     row.sendable = nil
@@ -262,16 +336,59 @@ end
 
 -- Chosen in-client, see docs/profession-button-appearance-findings.md
 -- Rounds 8-10. Request is red-orange to match the red of yell messages.
-local function professionGlowColor(action)
-    if action == "use" then
+-- On cooldown is the gray of poor-quality items (#9D9D9D).
+local function professionGlowColor(state)
+    if state == "cooldown" then
+        return 0.616, 0.616, 0.616
+    elseif state == "use" then
         return 0.1, 0.9, 0.1
-    elseif action == "craft" then
+    elseif state == "craft" then
         return 0.1, 0.3, 1
     end
     return 1, 0.2, 0
 end
 
--- Creates one of the 11 fixed profession-good buttons, permanently bound
+-- A "use" button whose shared cooldown is running is shown as its own
+-- "cooldown" state; craft and request still work during it.
+local function featureState(button)
+    if button.onCooldown then
+        return "cooldown"
+    end
+    return button.pendingAction
+end
+
+-- Status text color: white tinted a quarter of the way toward the
+-- button's glow color, so it reads as white with a hint of the state.
+local FEATURE_STATUS_TINT = 0.25
+
+-- The feature's name as the title, then its status line. Anchored off
+-- the button's upper-right corner instead of following the cursor.
+local function showFeatureTooltip(button)
+    -- No state means the button was just hidden.
+    local state = featureState(button)
+    if not (button.tooltipTitle and state) then
+        return
+    end
+    GameTooltip:SetOwner(button, "ANCHOR_NONE")
+    GameTooltip:SetPoint("BOTTOMLEFT", button, "TOPRIGHT")
+    GameTooltip:SetText(button.tooltipTitle)
+    local r, g, b = professionGlowColor(state)
+    local keep = 1 - FEATURE_STATUS_TINT
+    GameTooltip:AddLine(CS.Data.L["feature_status_" .. state],
+        keep + FEATURE_STATUS_TINT * r, keep + FEATURE_STATUS_TINT * g, keep + FEATURE_STATUS_TINT * b, true)
+    GameTooltip:Show()
+end
+
+-- Sets the glow from the button's state, and redraws its tooltip if
+-- it's showing so the status line changes while hovered.
+local function applyFeatureVisuals(button)
+    button.glow:SetVertexColor(professionGlowColor(featureState(button)))
+    if GameTooltip:IsOwned(button) then
+        showFeatureTooltip(button)
+    end
+end
+
+-- Creates one of the 11 fixed campfire feature buttons, permanently bound
 -- to its own item - unlike acquireRow's pool, these are never recycled
 -- (a SecureActionButtonTemplate button's identity can't be reassigned
 -- the way a pooled row's label can). RegisterForClicks requests both
@@ -301,7 +418,24 @@ local function createProfessionButton(entry)
     button.glow:SetSize(PROFESSION_GLOW_SIZE, PROFESSION_GLOW_SIZE)
     button.glow:SetPoint("CENTER")
 
-    button:SetScript("OnEnter", showRowTooltip)
+    -- The standard action-button cooldown swipe, so a placed campfire
+    -- feature's shared cooldown shows on every campfire feature the
+    -- player holds.
+    -- Countdown numbers forced on so the time left is visible regardless
+    -- of the player's own cooldown-text setting.
+    button.cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+    button.cooldown:SetAllPoints()
+    if button.cooldown.SetHideCountdownNumbers then
+        button.cooldown:SetHideCountdownNumbers(false)
+    end
+    -- Turns the glow back from gray when the cooldown runs out, without
+    -- relying on BAG_UPDATE_COOLDOWN firing for the end too.
+    button.cooldown:SetScript("OnCooldownDone", function()
+        button.onCooldown = false
+        applyFeatureVisuals(button)
+    end)
+
+    button:SetScript("OnEnter", showFeatureTooltip)
     button:SetScript("OnLeave", hideRowTooltip)
 
     -- PreClick, not OnClick, so this coexists with the secure click path:
@@ -329,7 +463,7 @@ local function createProfessionButton(entry)
                 -- with a raw item id in it when a reagent's name isn't
                 -- cached yet - never send that, just tell the player
                 -- locally and let them try again once it's warmed.
-                print("Campfire Stokers: " .. CS.Data.L.pg_request_not_ready)
+                print("Campfire Stokers: " .. CS.Data.L.feature_request_not_ready)
             end
         end
     end)
@@ -338,9 +472,34 @@ local function createProfessionButton(entry)
     return button
 end
 
+-- Only a "use" button shows the cooldown: it's the item's Use that's
+-- blocked, while crafting or requesting another one still works.
+-- Not protected (the cooldown frame isn't secure), so this is safe in
+-- combat too.
+local function updateProfessionCooldown(button)
+    local start, duration
+    if button.pendingAction == "use" then
+        start, duration = CS.Professions.GetItemCooldown(button.pendingItemId)
+    end
+    if start then
+        button.cooldown:SetCooldown(start, duration)
+    else
+        button.cooldown:Clear()
+    end
+    -- A global-cooldown-length sweep still draws, like on action bars,
+    -- but doesn't turn the button gray.
+    button.onCooldown = start ~= nil and duration > GLOBAL_COOLDOWN_MAX_SECONDS
+    applyFeatureVisuals(button)
+end
+
+local function updateProfessionCooldowns()
+    for _, button in pairs(professionButtons) do
+        updateProfessionCooldown(button)
+    end
+end
+
 local function applyProfessionButtonState(button, result)
     button.icon:SetTexture(result.icon)
-    button.glow:SetVertexColor(professionGlowColor(result.action))
 
     button.pendingAction = result.action
     button.pendingRecipeSpellId = result.recipeSpellId
@@ -351,15 +510,11 @@ local function applyProfessionButtonState(button, result)
     if result.action == "use" then
         button:SetAttribute("type", "item")
         button:SetAttribute("item", result.itemName)
-        button.tooltipText = result.itemName
     else
         button:SetAttribute("type", nil)
-        if result.action == "craft" then
-            button.tooltipText = result.entry.itemName .. " - " .. CS.Data.L.pg_tooltip_craft
-        else
-            button.tooltipText = result.entry.itemName .. " - " .. CS.Data.L.pg_tooltip_request
-        end
     end
+    button.tooltipTitle = result.entry.itemName
+    updateProfessionCooldown(button)
 end
 
 -- All attribute/position/visibility changes for these buttons are
@@ -400,10 +555,10 @@ end
 -- whenever the panel does, including a manual open away from a fire and
 -- the auto-close grace period after the aura drops (see docs/tasks.md's
 -- "Profession button visibility").
-local function evaluateGoodSafely(entry)
-    local ok, result = pcall(CS.Professions.EvaluateGood, entry)
+local function evaluateFeatureSafely(entry)
+    local ok, result = pcall(CS.Professions.EvaluateFeature, entry)
     if not ok then
-        print("Campfire Stokers: profession good '" .. entry.id .. "' failed to evaluate: " .. tostring(result))
+        print("Campfire Stokers: campfire feature '" .. entry.id .. "' failed to evaluate: " .. tostring(result))
         return { visible = false }
     end
     return result
@@ -417,15 +572,15 @@ local function layoutProfessionBlock(startY)
 
     local availableWidth = PANEL_WIDTH - (2 * PROFESSION_BLOCK_SIDE_PADDING)
     local columns = math.max(1, math.floor(availableWidth / (PROFESSION_ICON_SIZE + PROFESSION_ICON_GAP)))
-    local topY = startY - PROFESSION_BLOCK_TOP_GAP
+    local topY = startY - look.professionBlockGap
     local step = PROFESSION_ICON_SIZE + PROFESSION_ICON_GAP
 
     -- Evaluate everything first: centering a row needs to know how many
     -- buttons end up in it.
     local visibleButtons = {}
-    for _, entry in ipairs(CS.Professions.GOODS) do
+    for _, entry in ipairs(CS.Professions.FEATURES) do
         local button = professionButtons[entry.id]
-        local result = evaluateGoodSafely(entry)
+        local result = evaluateFeatureSafely(entry)
 
         if result.visible then
             applyProfessionButtonState(button, result)
@@ -434,6 +589,7 @@ local function layoutProfessionBlock(startY)
             button:Hide()
             button:SetAttribute("type", nil)
             button.pendingAction = nil
+            updateProfessionCooldown(button)
         end
     end
 
@@ -451,9 +607,9 @@ local function layoutProfessionBlock(startY)
 
     local rowsUsed = math.ceil(count / columns)
     if rowsUsed > 0 then
-        previousProfessionBlockHeight = PROFESSION_BLOCK_TOP_GAP
+        previousProfessionBlockHeight = look.professionBlockGap
             + (rowsUsed * PROFESSION_ICON_SIZE) + ((rowsUsed - 1) * PROFESSION_ICON_GAP)
-            + PROFESSION_BLOCK_BOTTOM_GAP
+            + look.professionBlockGap
     else
         previousProfessionBlockHeight = 0
     end
@@ -469,13 +625,13 @@ local function applyRowState(row)
     local hasTarget = UnitExists("target")
     local enabled = row.sendable and (not row.needsTarget or hasTarget)
     if not row.sendable then
-        row.text:SetTextColor(unpack(PALETTE.textFlagged)) -- never sendable
+        row.text:SetTextColor(unpack(look.textFlagged)) -- never sendable
         row.tooltipText = row.classifyReason
     elseif not enabled then
-        row.text:SetTextColor(unpack(PALETTE.textNeedsTarget))
+        row.text:SetTextColor(unpack(look.textNeedsTarget))
         row.tooltipText = CS.Data.L.ui_needs_target_tooltip
     else
-        row.text:SetTextColor(unpack(PALETTE.text))
+        row.text:SetTextColor(unpack(look.text))
         row.tooltipText = nil
     end
     -- No hover wash on a row a click won't send, so it doesn't look live.
@@ -497,18 +653,56 @@ local function refreshTargetGating()
     end
 end
 
+-- Shows the chrome for the selected style and hides the other's, and
+-- points `look` at its colors. Both styles' chrome is built once in
+-- CreatePanel, so switching in the options panel is live, no reload.
+-- Falls back to the campfire style if the Forever style's frame couldn't
+-- be built (see CreatePanel).
+local function applyStyle()
+    local useForever = CampfireStokersDB.panelStyle == "forever" and foreverChrome ~= nil
+    look = useForever and LOOKS.forever or LOOKS.campfire
+
+    for _, piece in ipairs(campfireChrome) do
+        piece:SetShown(not useForever)
+    end
+    if foreverChrome then
+        foreverChrome:SetShown(useForever)
+    end
+
+    if useForever then
+        stopFlicker()
+        frame:SetClampRectInsets(-FOREVER_FRAME_OUTSET, FOREVER_FRAME_OUTSET, FOREVER_PORTRAIT_OVERHANG,
+            -FOREVER_FRAME_OUTSET)
+    else
+        if frame:IsShown() then
+            startFlicker()
+        end
+        -- Clamp the wood, not just the panel inside it, to the screen.
+        frame:SetClampRectInsets(-WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET,
+            -WOOD_VISIBLE_OUTSET)
+    end
+
+    professionDivider:SetColorTexture(unpack(look.divider))
+end
+
+local function minPanelHeight()
+    local controlsTop = math.max(look.titleAreaHeight, look.portraitClearance or 0)
+    return controlsTop + SAY_YELL_HEIGHT + SAY_YELL_BOTTOM_GAP + ROW_HEIGHT
+end
+
 function CS.UI.Refresh()
     if not frame then
         return
     end
 
+    applyStyle()
     releaseRows()
 
-    local y = -TITLE_AREA_HEIGHT
+    local y = -look.titleAreaHeight
     local professionBlockHeight = layoutProfessionBlock(y)
     y = y - professionBlockHeight
 
-    -- Separates the profession goods (which always yell) from the
+    -- Separates the campfire features (whose requests always yell) from the
     -- Say/Yell toggle and the phrases it controls.
     if professionBlockHeight > 0 then
         professionDivider:ClearAllPoints()
@@ -518,6 +712,9 @@ function CS.UI.Refresh()
         y = y - 6
     else
         professionDivider:Hide()
+    end
+    if look.portraitClearance then
+        y = math.min(y, -look.portraitClearance)
     end
 
     sayButton:ClearAllPoints()
@@ -546,10 +743,23 @@ function CS.UI.Refresh()
             onCategoryClick(category)
         end)
         headerRow.text:ClearAllPoints()
-        headerRow.text:SetPoint("LEFT", headerRow.collapseIcon, "RIGHT", 6, 0)
-        headerRow.text:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
+        if look.collapseOnRight then
+            headerRow.collapseIcon:ClearAllPoints()
+            headerRow.collapseIcon:SetPoint("RIGHT", headerRow, "RIGHT", -6, 0)
+            headerRow.text:SetPoint("LEFT", headerRow, "LEFT", 8, 0)
+            headerRow.text:SetPoint("RIGHT", headerRow.collapseIcon, "LEFT", -6, 0)
+        else
+            headerRow.text:SetPoint("LEFT", headerRow.collapseIcon, "RIGHT", 6, 0)
+            headerRow.text:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
+        end
+        if look.headerBar then
+            headerRow.headerBar:SetColorTexture(unpack(look.headerBar))
+            headerRow.headerBar:Show()
+            headerRow.headerLine:SetColorTexture(unpack(look.headerLine))
+            headerRow.headerLine:Show()
+        end
         headerRow.text:SetFontObject("GameFontNormalLarge")
-        headerRow.text:SetTextColor(unpack(PALETTE.header))
+        headerRow.text:SetTextColor(unpack(look.header))
         headerRow.text:SetText(category.name)
         headerRow:SetScript("OnClick", function()
             onCategoryClick(category)
@@ -578,7 +788,7 @@ function CS.UI.Refresh()
         end
     end
 
-    frame:SetHeight(math.max(-y + 8, CONTROLS_MIN_HEIGHT + ROW_HEIGHT))
+    frame:SetHeight(math.max(-y + 8, minPanelHeight()))
 end
 
 function CS.UI.Show()
@@ -857,15 +1067,20 @@ end
 -- Creates the panel frame. Called once, from Core.lua's ADDON_LOADED
 -- handler, after CampfireStokersDB has been bootstrapped. Every phrase
 -- row calls an ordinary Lua function (CS.Send.Send / CS.Tree
--- operations), nothing protected - the 11 profession-good buttons are
+-- operations), nothing protected - the 11 campfire feature buttons are
 -- the one exception, built with SecureActionButtonTemplate (see
 -- createProfessionButton above and docs/decision-log.md).
 function CS.UI.CreatePanel()
     CampfireStokersDB.collapsedCategories = CampfireStokersDB.collapsedCategories or {}
     CampfireStokersDB.sendMode = CampfireStokersDB.sendMode or "SAY"
+    -- "default" was this style's id before it was renamed Forever.
+    if CampfireStokersDB.panelStyle == "default" then
+        CampfireStokersDB.panelStyle = "forever"
+    end
+    CampfireStokersDB.panelStyle = CampfireStokersDB.panelStyle or CS.UI.DEFAULT_STYLE
 
     frame = CreateFrame("Frame", "CampfireStokersPanel", UIParent)
-    frame:SetSize(PANEL_WIDTH, CONTROLS_MIN_HEIGHT + ROW_HEIGHT)
+    frame:SetSize(PANEL_WIDTH, minPanelHeight())
 
     -- Not a backdrop background: a backdrop's background color multiplies
     -- its texture, so it can lower opacity but never raise it - the cause
@@ -875,12 +1090,12 @@ function CS.UI.CreatePanel()
     local backgroundFill = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
     backgroundFill:SetPoint("TOPLEFT", frame, "TOPLEFT", -WOOD_UNDERLAP, WOOD_UNDERLAP)
     backgroundFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", WOOD_UNDERLAP, -WOOD_UNDERLAP)
-    backgroundFill:SetColorTexture(unpack(PALETTE.background))
+    backgroundFill:SetColorTexture(unpack(LOOKS.campfire.background))
 
     local backgroundParchment = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
     backgroundParchment:SetAllPoints(backgroundFill)
     backgroundParchment:SetTexture(BACKGROUND_TEXTURE)
-    backgroundParchment:SetVertexColor(unpack(PALETTE.backgroundTexture))
+    backgroundParchment:SetVertexColor(unpack(LOOKS.campfire.backgroundTexture))
 
     -- The wood sits in a clipping frame inset by WOOD_RIM, which trims the
     -- texture's metal rim off its outer edge. Both are above the panel's
@@ -905,12 +1120,11 @@ function CS.UI.CreatePanel()
         local cap = woodBorder:CreateTexture(nil, "OVERLAY")
         cap:SetSize(WOOD_CORNER_CAP, WOOD_CORNER_CAP)
         cap:SetPoint(corner, woodClip, corner)
-        cap:SetColorTexture(unpack(PALETTE.woodCorner))
+        cap:SetColorTexture(unpack(LOOKS.campfire.woodCorner))
     end
 
+    -- The clamp insets depend on the style's border; applyStyle sets them.
     frame:SetClampedToScreen(true)
-    -- Clamp the wood, not just the panel inside it, to the screen.
-    frame:SetClampRectInsets(-WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET, -WOOD_VISIBLE_OUTSET)
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
@@ -919,10 +1133,12 @@ function CS.UI.CreatePanel()
     if savedPosition then
         frame:SetPoint(savedPosition.point, UIParent, savedPosition.point, savedPosition.x, savedPosition.y)
     else
-        -- Offset by the wood so the border, not just the panel inside it,
-        -- lines up with the chat window and clears it.
-        frame:SetPoint("BOTTOMLEFT", DEFAULT_CHAT_FRAME, "TOPLEFT", WOOD_VISIBLE_OUTSET,
-            20 + WOOD_VISIBLE_OUTSET)
+        -- Centered in the right half of the screen, a fifth of the way
+        -- down: the profession window opens anchored to the left when a
+        -- campfire recipe is crafted from the panel, and covered the panel at its
+        -- old default spot above the chat window. Top-anchored so the
+        -- panel grows downward as categories expand.
+        frame:SetPoint("TOP", UIParent, "TOP", UIParent:GetWidth() / 4, -UIParent:GetHeight() / 5)
     end
 
     frame:SetScript("OnDragStart", function(self)
@@ -954,7 +1170,7 @@ function CS.UI.CreatePanel()
     titleGlow:SetBlendMode("ADD")
     titleGlow:SetSize(TITLE_GLOW_SIZE, TITLE_GLOW_SIZE)
     titleGlow:SetPoint("CENTER", titleIcon, "CENTER")
-    titleGlow:SetVertexColor(unpack(PALETTE.header))
+    titleGlow:SetVertexColor(unpack(LOOKS.campfire.header))
 
     local emberFlicker = titleGlow:CreateAnimationGroup()
     emberFlicker:SetToFinalAlpha(true)
@@ -969,38 +1185,86 @@ function CS.UI.CreatePanel()
         emberFlicker:Play()
     end
     emberFlicker:SetScript("OnFinished", nextFlicker)
-    frame:SetScript("OnShow", nextFlicker)
-    frame:SetScript("OnHide", function()
+    startFlicker = function()
+        if not emberFlicker:IsPlaying() then
+            nextFlicker()
+        end
+    end
+    stopFlicker = function()
         emberFlicker:Stop()
+    end
+    frame:SetScript("OnShow", function()
+        if look == LOOKS.campfire then
+            startFlicker()
+        end
     end)
+    frame:SetScript("OnHide", stopFlicker)
 
     -- Icon and title centered as one unit: the text is offset right by
     -- half the icon's width plus gap, and the icon hangs off its left.
     local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     titleText:SetPoint("CENTER", frame, "TOP", (TITLE_ICON_SIZE + TITLE_ICON_TEXT_GAP) / 2,
-        -(TITLE_AREA_HEIGHT / 2))
+        -(CAMPFIRE_TITLE_AREA_HEIGHT / 2))
     titleText:SetText(CS.Data.L.ui_panel_title)
-    titleText:SetTextColor(unpack(PALETTE.header))
+    titleText:SetTextColor(unpack(LOOKS.campfire.header))
     titleIcon:SetPoint("RIGHT", titleText, "LEFT", -TITLE_ICON_TEXT_GAP, 0)
 
     local titleDivider = frame:CreateTexture(nil, "ARTWORK")
     titleDivider:SetHeight(1)
-    titleDivider:SetPoint("TOPLEFT", frame, "TOPLEFT", DIVIDER_INSET, -TITLE_AREA_HEIGHT + 2)
-    titleDivider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -DIVIDER_INSET, -TITLE_AREA_HEIGHT + 2)
-    titleDivider:SetColorTexture(unpack(PALETTE.divider))
+    titleDivider:SetPoint("TOPLEFT", frame, "TOPLEFT", DIVIDER_INSET, -CAMPFIRE_TITLE_AREA_HEIGHT + 2)
+    titleDivider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -DIVIDER_INSET, -CAMPFIRE_TITLE_AREA_HEIGHT + 2)
+    titleDivider:SetColorTexture(unpack(LOOKS.campfire.divider))
 
     professionDivider = frame:CreateTexture(nil, "ARTWORK")
     professionDivider:SetHeight(1)
-    professionDivider:SetColorTexture(unpack(PALETTE.divider))
+    professionDivider:SetColorTexture(unpack(LOOKS.campfire.divider))
     professionDivider:Hide()
 
     local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     -- Centered on a title-row-sized square in the corner, so it lines up
     -- with the title and its top and right margins match, then nudged in
     -- a little more off the border.
-    local closeOffset = TITLE_AREA_HEIGHT / 2 + CLOSE_BUTTON_EXTRA_PADDING
+    local closeOffset = CAMPFIRE_TITLE_AREA_HEIGHT / 2 + CLOSE_BUTTON_EXTRA_PADDING
     closeButton:SetPoint("CENTER", frame, "TOPRIGHT", -closeOffset, -closeOffset)
     closeButton:SetScript("OnClick", CS.UI.Hide)
+
+    campfireChrome = {
+        backgroundFill, backgroundParchment, woodClip, titleIcon, titleGlow, titleText, titleDivider, closeButton,
+    }
+
+    -- The Forever style: Blizzard's own portrait frame, the template the
+    -- default UI's Auction House and profession windows are built on, for
+    -- its border, title bar, rock background, round portrait and close
+    -- button, so the art is whatever this client's own frames use rather
+    -- than texture paths guessed from retail. Its border sits just outside
+    -- the panel's content and its title bar inside the title area. Kept at
+    -- the panel's own frame level, under the rows and buttons, and not
+    -- mouse-enabled, so dragging the panel still works through it. Neither
+    -- the template nor its mixin methods are confirmed on Forever yet, so
+    -- it's built under pcall; if it fails, the Forever style falls back to
+    -- the campfire look (see applyStyle).
+    local chrome
+    local ok, err = pcall(function()
+        chrome = CreateFrame("Frame", nil, frame, "PortraitFrameTemplate")
+        chrome:SetPoint("TOPLEFT", frame, "TOPLEFT", -FOREVER_FRAME_OUTSET, 0)
+        chrome:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", FOREVER_FRAME_OUTSET, -FOREVER_FRAME_OUTSET)
+        chrome:SetFrameLevel(frame:GetFrameLevel())
+        chrome:EnableMouse(false)
+        chrome:SetTitle(CS.Data.L.ui_panel_title)
+        chrome:SetPortraitToAsset("Interface/Icons/Spell_Fire_Fire")
+        -- The template's close button would hide only this chrome frame.
+        chrome.CloseButton:SetScript("OnClick", CS.UI.Hide)
+        chrome:Hide()
+        foreverChrome = chrome
+    end)
+    if not ok then
+        -- A half-built frame (the template loaded, a mixin method didn't)
+        -- would otherwise stay on screen over the campfire look.
+        if chrome then
+            chrome:Hide()
+        end
+        print("Campfire Stokers: could not build the Forever panel style (" .. tostring(err) .. ").")
+    end
 
     -- Say/Yell as a two-state segmented control (both options always
     -- visible, the active one locked-highlighted) instead of one button
@@ -1040,13 +1304,24 @@ function CS.UI.CreatePanel()
     refreshSendModeButtons()
 
     frame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    -- Fires when an item cooldown starts or ends. Not yet confirmed on
+    -- Forever, and registering an unknown event throws on this build (see
+    -- docs/decision-log.md), so it's guarded: without it the swipe still
+    -- updates on every Refresh, including BAG_UPDATE_DELAYED's after a
+    -- campfire feature is placed.
+    local cooldownEventOk = pcall(frame.RegisterEvent, frame, "BAG_UPDATE_COOLDOWN")
+    if not cooldownEventOk then
+        print("Campfire Stokers: BAG_UPDATE_COOLDOWN is not available; profession cooldowns update on refresh only.")
+    end
     frame:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_TARGET_CHANGED" then
             refreshTargetGating()
+        elseif event == "BAG_UPDATE_COOLDOWN" then
+            updateProfessionCooldowns()
         end
     end)
 
-    for _, entry in ipairs(CS.Professions.GOODS) do
+    for _, entry in ipairs(CS.Professions.FEATURES) do
         professionButtons[entry.id] = createProfessionButton(entry)
     end
 

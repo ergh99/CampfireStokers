@@ -431,9 +431,41 @@ function CS.Options.CreateCanvas()
     title:SetPoint("TOPLEFT", canvas, "TOPLEFT", 16, -16)
     title:SetText(CS.Data.L.ui_options_title)
 
+    local styleLabel = canvas:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    styleLabel:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -16)
+    styleLabel:SetText(CS.Data.L.ui_panel_style)
+
+    -- The modern retail dropdown (Blizzard_Menu's WowStyle1DropdownTemplate
+    -- and SetupMenu), which replaced UIDropDownMenu in retail. Not yet
+    -- confirmed on Forever, so it's pcall-wrapped like the Settings
+    -- registration below: a missing template throws from CreateFrame, and
+    -- that shouldn't take down the rest of the options panel.
+    local styleOk, styleErr = pcall(function()
+        local styleDropdown = CreateFrame("DropdownButton", nil, canvas, "WowStyle1DropdownTemplate")
+        styleDropdown:SetWidth(200)
+        styleDropdown:SetPoint("LEFT", styleLabel, "RIGHT", 8, 0)
+        styleDropdown:SetupMenu(function(_, rootDescription)
+            for _, style in ipairs(CS.UI.STYLES) do
+                rootDescription:CreateRadio(
+                    CS.Data.L[style.labelKey],
+                    function()
+                        return CampfireStokersDB.panelStyle == style.id
+                    end,
+                    function()
+                        CampfireStokersDB.panelStyle = style.id
+                        CS.UI.Refresh()
+                    end
+                )
+            end
+        end)
+    end)
+    if not styleOk then
+        print("Campfire Stokers: could not create the panel style dropdown (" .. tostring(styleErr) .. ").")
+    end
+
     local addCategoryButton = CreateFrame("Button", nil, canvas, "UIPanelButtonTemplate")
     addCategoryButton:SetSize(120, 22)
-    addCategoryButton:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)
+    addCategoryButton:SetPoint("TOPLEFT", styleLabel, "BOTTOMLEFT", 0, -20)
     addCategoryButton:SetText(CS.Data.L.ui_add_category)
     addCategoryButton:SetScript("OnClick", function()
         CS.UI.PromptForText({

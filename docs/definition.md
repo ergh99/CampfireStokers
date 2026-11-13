@@ -100,13 +100,13 @@ A representative TOC: an Interface line with the confirmed number, Title Campfir
 
 ## UI and UX
 
-The campfire panel is a small frame anchored near the chat window by default, draggable and position-remembered account-wide. It uses stock Blizzard textures, each confirmed in-client, in a warm campfire style: the achievement frame's wood border, a darkened achievement parchment background, ember-orange title and category headers, parchment phrase text, and thin leather dividers between sections, with the add-on's fire icon and a slow ember glow pulsing beside the title, so it reads as its own thing while still sitting comfortably beside the default UI. It opens automatically on campfire detection and can be dismissed with a close button or by standing up from the fire, and reopened anytime through an addon compartment entry or the slash command /campfire, or its alias /cfs.
+The campfire panel is a small frame placed in the right half of the screen by default, clear of the left-anchored profession window that opens when a campfire recipe is crafted, draggable and position-remembered account-wide. A Campfire style, chosen in the options panel, uses stock Blizzard textures, each confirmed in-client, in a warm look: the achievement frame's wood border, a darkened achievement parchment background, ember-orange title and category headers, parchment phrase text, and thin leather dividers between sections, with the add-on's fire icon and a slow ember glow pulsing beside the title, so it reads as its own thing while still sitting comfortably beside the default UI. Its default Forever style builds the panel on Blizzard's own portrait frame template (the one behind the Auction House and profession windows) for its border, title bar, rock background, round portrait and close button, with gold category headers on a dark bar, their collapse control on the right, and white phrase text. It opens automatically on campfire detection and can be dismissed with a close button or by standing up from the fire, and reopened anytime through an addon compartment entry or the slash command /campfire, or its alias /cfs.
 
 Auto-open has no delay or cooldown: it mirrors campfire detection directly, opening every time the player is detected at a fire. Opening the panel manually is, as always, immediate either way. Auto-close is not immediate, though: the campfire aura can drop and reapply repeatedly while the player sits at the fire without moving, so losing it starts a 10-second countdown in memory (never saved) rather than closing the panel outright; regaining the aura before the countdown elapses cancels it. Only a panel this add-on auto-opened is ever auto-closed - one opened manually stays up regardless of the aura.
 
 The panel shows the phrase tree as a collapsible outline, categories as expandable headers and phrases as single-line buttons beneath them. Clicking a phrase sends it immediately, using the panel's Say/Yell toggle unless the phrase starts with a slash command and briefly highlights the button as feedback.
 
-The options panel, opened through the standard Blizzard Settings interface under AddOns, hosts the phrase tree editor: add category, add phrase, rename and delete controls, where rename and edit open a popup dialog, drag-and-drop reordering, and an auto-open delay setting (5 minutes by default). Two buttons handle defaults: Reset to defaults replaces the whole tree with the bootstrapped starter tree after a confirmation, and Restore missing defaults re-adds any default category or phrase the player has deleted, clearing the deleted-ids record, without touching other edits.
+The options panel, opened through the standard Blizzard Settings interface under AddOns, hosts the phrase tree editor: add category, add phrase, rename and delete controls, where rename and edit open a popup dialog, drag-and-drop reordering, an auto-open delay setting (5 minutes by default), and a panel style selector: Campfire (the warm style described above) or Forever, which matches the default UI's own frames such as the Auction House and profession windows. Switching applies immediately. Two buttons handle defaults: Reset to defaults replaces the whole tree with the bootstrapped starter tree after a confirmation, and Restore missing defaults re-adds any default category or phrase the player has deleted, clearing the deleted-ids record, without touching other edits.
 
 ## Saved Variables and Persistence
 
@@ -123,13 +123,15 @@ milestone shell.
 
 **Context**: WoW Forever adds a new class of crafted consumables, one per
 profession (both primary and secondary professions), unlocked at skill
-level 20. Using one of these at a campfire creates an object that enhances
+level 20. The game calls these items **campfire features** and the
+profession recipes that make them **campfire recipes**; this project
+uses those names throughout. Using one of these at a campfire creates an object that enhances
 the campfire's existing sit-for-a-minute, hour-long buff with additional
 effects - specifically combat buffs - for everyone who benefits from that
 fire.
 
-**Feature**: the campfire panel gains one button per profession-crafted
-good the player's current character could plausibly use, determined
+**Feature**: the campfire panel gains one button per campfire feature
+the player's current character could plausibly use, determined
 dynamically from which professions the character actually knows and at
 what skill level - not a hardcoded list, since Forever's specific
 item/recipe data for this isn't available yet. Clicking a profession's
@@ -145,9 +147,19 @@ button attempts, in order, with no confirmation dialog at any step
    first click opens the real Blizzard crafting frame on the recipe and
    leaves it visible; the second click crafts and closes the frame.
 3. **Request.** If materials are also missing, yell a message offering to
-   craft and place the good in exchange for the missing materials, with
-   the specific missing items and quantities generated dynamically into
-   the message text.
+   craft and place the campfire feature in exchange for the missing
+   materials, with the specific missing items and quantities generated
+   dynamically into the message text.
+
+Placing any campfire feature puts every campfire feature's Use on one
+shared cooldown. A "use" button shows that cooldown as the standard
+cooldown sweep with countdown numbers (confirmed in-client 2026-10-14),
+and while it runs the button's glow turns the gray of poor-quality
+items and its tooltip status reads "On cooldown". Craft and request
+buttons don't, since crafting and requesting still work during it. Each
+button's tooltip, anchored off its upper-right corner, shows the
+campfire feature's name, then a status line in white tinted toward the
+button's glow color.
 
 **Confirmed via in-client research (2026-10-02)**, against a test subset
 of five professions (Fishing/Fish Bowl, Alchemy/Mana Well,
@@ -164,7 +176,7 @@ Kit); the full command-by-command log lives in `docs/research.txt`:
   `GetProfessionInfo()` work as retail's do. First Aid is not tracked
   through them (matches modern retail, which also dropped it from
   `GetProfessions()`).
-- "Is this good craftable by this character" is **not** `craftable` on
+- "Is this campfire recipe craftable by this character" is **not** `craftable` on
   `C_TradeSkillUI.GetRecipeInfo(recipeSpellID)` - confirmed during
   implementation to return `true` even for a profession the character
   doesn't have at all. The real per-character gate is
@@ -214,7 +226,7 @@ Kit); the full command-by-command log lives in `docs/research.txt`:
   This two-click sequence is what `Professions.lua`'s `Craft`
   implements.
 - **Corrected risk, was previously mislabeled as crafting**: using/placing
-  the crafted good is the step that's actually hard. `C_Item.UseItemByName`
+  the campfire feature is the step that's actually hard. `C_Item.UseItemByName`
   cannot be called from ordinary insecure Lua at all (confirmed: it throws
   citing `SecureActionButtonTemplate`), including from inside a plain
   `Button`'s `OnClick`. It requires a `SecureActionButtonTemplate`-based
@@ -228,7 +240,7 @@ Kit); the full command-by-command log lives in `docs/research.txt`:
   which item is current changes, the fix is to update that button's
   secure attributes, not to call a function.
 
-- Proximity: the crafted good's own use-validation enforces being at a
+- Proximity: the campfire feature's own use-validation enforces being at a
   campfire itself. **Changed 2026-10-05 by the player's decision**: the
   profession buttons are no longer gated on `CS.Detection`'s at-fire
   boolean. They show whenever the panel is visible - including a panel
@@ -239,7 +251,7 @@ Kit); the full command-by-command log lives in `docs/research.txt`:
 
 **Confirmed (2026-10-02, via the player's own domain knowledge - not yet
 in-client-tested): each profession has (at least) three reward tiers,
-functionally different, not "the same good, upgraded":**
+functionally different, not "the same campfire feature, upgraded":**
 
 - **Tier 1** (skill 20, the set this capture originally tested): a
   placeable object that augments the sit-at-campfire buff for *anyone*
@@ -249,7 +261,7 @@ functionally different, not "the same good, upgraded":**
   that isn't a passive buff-augmenter - it's interactable and spawns a
   vendor instead - but this needs no special handling from the add-on:
   the add-on's job ends at use/craft/request, same as any other tier-1
-  good, and it's unconcerned with whatever happens after placement.
+  campfire feature, and it's unconcerned with whatever happens after placement.
 - **Tier 2 and tier 3** are strictly additive over tier 1: a placed tier
   2/3 object also counts as its tier-1 self for the shared buff, plus
   niche extra effects, at a higher crafting cost. Tier 2's real
@@ -261,7 +273,7 @@ functionally different, not "the same good, upgraded":**
 - **Scope decision**: given tiers 2/3 are strictly additive and more
   expensive to craft for only niche benefit, this add-on supports tier 1
   only. Tiers 2/3 are not part of this feature's scope - "one button per
-  profession" stands as originally written, one tier-1 good per
+  profession" stands as originally written, one tier-1 campfire feature per
   profession, not one per profession-tier.
 
 **Confirmed (2026-10-02)**: the yell request message follows the
@@ -275,13 +287,13 @@ from the reagent/bag-count comparison already resolved above).
 **Profession coverage, complete**: Jewelcrafting and Inscription were
 added in The Burning Crusade and Wrath of the Lich King respectively, so
 neither exists in Forever. Of the remaining professions, **Cooking is
-excluded from this feature** - its tier-1 good (Basic Campfire Kit)
+excluded from this feature** - its tier-1 campfire feature (Basic Campfire Kit)
 isn't a campfire *extension* like every other profession's; it's what
 creates the initial campfire itself. Since this panel only ever shows
 when the player is already at a campfire (gated on `CS.Detection.atFire`),
 there's no reachable state where placing a Basic Campfire Kit from this
 panel would make sense - a campfire already exists in every case the
-panel can be open. The 11 goods this feature supports are: Fishing,
+panel can be open. The 11 campfire features this add-on supports are: Fishing,
 Alchemy, Herbalism, First Aid, Enchanting, Leatherworking, Engineering,
 Blacksmithing, Tailoring, Mining, and Skinning. See `docs/research.txt`
 for the full item/spell ID table.
