@@ -44,6 +44,16 @@ from in-client verification (T6 onward) and the decisions that followed.
     point: it's the one gate standing in for the compiler error a normal Lua
     project would get for a typo'd identifier.
 
+## Debug flag
+
+`CS.DEBUG` (defined at the top of `Data.lua`) turns on `CS.Debug(...)`
+output in chat. Set it to `true` locally while developing, but **before
+every commit, set `CS.DEBUG = false`**. It must never be committed as
+anything else. Agents: check this as part of preparing any commit, and
+reset it yourself if it's `true`. `tests/data_spec.lua` fails if it's not
+`false`, so a slip also fails CI. It lives on the shared `CS` table, not as
+a real Lua global, per the no-globals rules above.
+
 ## Secret-value rules
 
 Since patch 12.0, aura (and related) data can be a *secret value*: unreadable

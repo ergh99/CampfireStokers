@@ -3,6 +3,20 @@ local CS = select(2, ...)
 ---@class CampfireStokersData
 CS.Data = CS.Data or {}
 
+-- Addon-wide debug flag: shared through the CS table rather than as a
+-- real Lua global, which AGENTS.md's no-globals rule forbids. Set it to
+-- true locally while developing; it must be false in every commit (see
+-- AGENTS.md, "Debug flag"), and tests/data_spec.lua fails if it isn't.
+-- Data.lua loads first in the TOC, so every other module can use it.
+CS.DEBUG = false
+
+-- Prints only while CS.DEBUG is true.
+function CS.Debug(message)
+    if CS.DEBUG then
+        print("Campfire Stokers [debug]: " .. tostring(message))
+    end
+end
+
 -- Bumped by Tree.lua's migration whenever a default category or phrase is
 -- added to DefaultTree below, so existing SavedVariables trees can pick up
 -- the addition without touching a player's own edits.

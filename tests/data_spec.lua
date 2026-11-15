@@ -8,6 +8,12 @@ local function loadData()
     return CS.Data
 end
 
+tests["the debug flag is committed as false"] = function()
+    local CS = {}
+    loadModule("Data.lua", "CampfireStokers", CS)
+    assert(CS.DEBUG == false, "CS.DEBUG must be false before committing (see AGENTS.md, \"Debug flag\")")
+end
+
 tests["DefaultTree holds five categories, in the documented order"] = function()
     local Data = loadData()
     local expectedIds = {
