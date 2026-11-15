@@ -19,9 +19,9 @@ local PROFESSION_ICON_SIZE = 64
 -- docs/profession-button-appearance-findings.md).
 local PROFESSION_GLOW_SIZE = 110
 local PROFESSION_ICON_GAP = 8
--- The global cooldown is at most 1.5 seconds; an item cooldown this short
--- or shorter is that, not the shared campfire feature cooldown.
-local GLOBAL_COOLDOWN_MAX_SECONDS = 1.5
+-- How long after a Use click to read the cooldown back, so the client has
+-- had time to start it.
+local USE_COOLDOWN_CHECK_DELAY_SECONDS = 1
 local PROFESSION_BLOCK_SIDE_PADDING = 8
 local SAY_YELL_HEIGHT = 20
 local SAY_YELL_BOTTOM_GAP = 10
@@ -388,6 +388,10 @@ local function applyFeatureVisuals(button)
     end
 end
 
+-- Defined below createProfessionButton; declared here so its PostClick
+-- can call it.
+local updateProfessionCooldowns
+
 -- Creates one of the 11 fixed campfire feature buttons, permanently bound
 -- to its own item - unlike acquireRow's pool, these are never recycled
 -- (a SecureActionButtonTemplate button's identity can't be reassigned
@@ -468,6 +472,27 @@ local function createProfessionButton(entry)
         end
     end)
 
+    -- After a Use click (the secure click-through has already run by
+    -- PostClick), read the shared cooldown back once the client has had a
+    -- moment to start it; CheckCooldownAfterUse reports it in debug mode
+    -- and forces an hour-long one if none is readable. Release only, like
+    -- PreClick. A click while already on cooldown can't have used
+    -- anything, so it's ignored rather than restarting the forced timer.
+    button:SetScript("PostClick", function(self, _, down)
+        if down or self.pendingAction ~= "use" then
+            return
+        end
+        local itemId = self.pendingItemId
+        if self.onCooldown then
+            CS.Debug("Use of item " .. tostring(itemId) .. " clicked while already on cooldown; ignored.")
+            return
+        end
+        C_Timer.After(USE_COOLDOWN_CHECK_DELAY_SECONDS, function()
+            CS.Professions.CheckCooldownAfterUse(itemId)
+            updateProfessionCooldowns()
+        end)
+    end)
+
     button:Hide()
     return button
 end
@@ -479,7 +504,7 @@ end
 local function updateProfessionCooldown(button)
     local start, duration
     if button.pendingAction == "use" then
-        start, duration = CS.Professions.GetItemCooldown(button.pendingItemId)
+        start, duration = CS.Professions.GetFeatureCooldown(button.pendingItemId)
     end
     if start then
         button.cooldown:SetCooldown(start, duration)
@@ -488,11 +513,11 @@ local function updateProfessionCooldown(button)
     end
     -- A global-cooldown-length sweep still draws, like on action bars,
     -- but doesn't turn the button gray.
-    button.onCooldown = start ~= nil and duration > GLOBAL_COOLDOWN_MAX_SECONDS
+    button.onCooldown = start ~= nil and duration > CS.Professions.GLOBAL_COOLDOWN_MAX_SECONDS
     applyFeatureVisuals(button)
 end
 
-local function updateProfessionCooldowns()
+function updateProfessionCooldowns()
     for _, button in pairs(professionButtons) do
         updateProfessionCooldown(button)
     end

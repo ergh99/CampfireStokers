@@ -79,6 +79,7 @@ read_globals = {
     "UnitFactionGroup",
     "ProfessionsFrame",
     "C_Container",
+    "GetTime",
 }
 
 -- tests/ mocks real WoW API globals by assigning directly over them (e.g.

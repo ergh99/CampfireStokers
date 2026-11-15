@@ -198,6 +198,69 @@ function CS.Professions.GetItemCooldown(itemId, options)
     return start, duration
 end
 
+-- The global cooldown is at most 1.5 seconds; an item cooldown this short
+-- or shorter is that, not the shared campfire feature cooldown.
+CS.Professions.GLOBAL_COOLDOWN_MAX_SECONDS = 1.5
+
+-- Applied when a Use isn't followed by a readable shared cooldown.
+-- Observed in-client: the cooldown is only readable while some campfire
+-- feature item is still in the bags, so using the last one left nothing
+-- to read it from.
+CS.Professions.FORCED_COOLDOWN_SECONDS = 3600
+
+-- GetTime()-based start of the forced cooldown, or nil. Session-only:
+-- not saved, so it's gone after a reload.
+local forcedCooldownStart
+
+local function isFeatureCooldown(duration)
+    return duration ~= nil and duration > CS.Professions.GLOBAL_COOLDOWN_MAX_SECONDS
+end
+
+-- Called shortly after a campfire feature's Use. Reports the detected
+-- cooldown through CS.Debug and, if none is readable, starts the forced
+-- one. `options` is passed through to GetItemCooldown, plus
+-- getTime() defaulting to GetTime.
+-- Returns start, duration of whichever cooldown now applies.
+function CS.Professions.CheckCooldownAfterUse(itemId, options)
+    options = options or {}
+    local getTime = options.getTime or GetTime
+    local now = getTime()
+
+    local start, duration = CS.Professions.GetItemCooldown(itemId, options)
+    if isFeatureCooldown(duration) then
+        forcedCooldownStart = nil
+        CS.Debug(string.format("Use of item %s: detected cooldown start=%.1f duration=%.1f (%.0fs left).",
+            tostring(itemId), start, duration, start + duration - now))
+        return start, duration
+    end
+
+    forcedCooldownStart = now
+    CS.Debug(string.format("Use of item %s: no cooldown detected (start=%s duration=%s); forcing %ds.",
+        tostring(itemId), tostring(start), tostring(duration), CS.Professions.FORCED_COOLDOWN_SECONDS))
+    return forcedCooldownStart, CS.Professions.FORCED_COOLDOWN_SECONDS
+end
+
+-- The cooldown a campfire feature's Use button should show: the real one
+-- when readable, else the forced one while it lasts, else whatever
+-- GetItemCooldown returned (nil, or a global-cooldown sweep).
+-- `options` as CheckCooldownAfterUse.
+function CS.Professions.GetFeatureCooldown(itemId, options)
+    options = options or {}
+    local start, duration = CS.Professions.GetItemCooldown(itemId, options)
+    if isFeatureCooldown(duration) then
+        return start, duration
+    end
+
+    if forcedCooldownStart then
+        local getTime = options.getTime or GetTime
+        if getTime() < forcedCooldownStart + CS.Professions.FORCED_COOLDOWN_SECONDS then
+            return forcedCooldownStart, CS.Professions.FORCED_COOLDOWN_SECONDS
+        end
+        forcedCooldownStart = nil
+    end
+    return start, duration
+end
+
 -- Pure. "an" before a name starting with a vowel letter, "a" otherwise.
 -- Letter-based, not sound-based: right for all 11 FEATURES names ("an
 -- Incense Candle", "an Enchanted Lute", "a" for the rest), none of which

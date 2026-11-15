@@ -350,6 +350,55 @@ tests["GetItemCooldown never compares a secret value"] = function()
     }) == nil)
 end
 
+-- CheckCooldownAfterUse / GetFeatureCooldown: the forced fallback cooldown.
+
+local function cooldownOptions(clock, start, duration)
+    return {
+        getItemCooldown = function() return start, duration, true end,
+        canAccessValue = readable,
+        getTime = function() return clock[1] end,
+    }
+end
+
+tests["CheckCooldownAfterUse keeps a detected cooldown and forces nothing"] = function()
+    local CS = loadProfessions()
+    local clock = { 1000 }
+    local start, duration = CS.Professions.CheckCooldownAfterUse(279967, cooldownOptions(clock, 999, 3600))
+    assert(start == 999 and duration == 3600)
+
+    -- With the item gone afterwards, nothing was forced.
+    assert(CS.Professions.GetFeatureCooldown(279967, cooldownOptions(clock, 0, 0)) == nil)
+end
+
+tests["CheckCooldownAfterUse forces an hour when no cooldown is readable"] = function()
+    local CS = loadProfessions()
+    local clock = { 1000 }
+    local start, duration = CS.Professions.CheckCooldownAfterUse(279967, cooldownOptions(clock, 0, 0))
+    assert(start == 1000 and duration == 3600)
+
+    clock[1] = 2000
+    start, duration = CS.Professions.GetFeatureCooldown(279956, cooldownOptions(clock, 0, 0))
+    assert(start == 1000 and duration == 3600)
+
+    clock[1] = 4600
+    assert(CS.Professions.GetFeatureCooldown(279956, cooldownOptions(clock, 0, 0)) == nil)
+end
+
+tests["CheckCooldownAfterUse treats a global-cooldown sweep as no cooldown"] = function()
+    local CS = loadProfessions()
+    local clock = { 1000 }
+    local _, duration = CS.Professions.CheckCooldownAfterUse(279967, cooldownOptions(clock, 999.5, 1.5))
+    assert(duration == 3600)
+end
+
+tests["GetFeatureCooldown prefers a readable real cooldown over the forced one"] = function()
+    local CS = loadProfessions()
+    local clock = { 1000 }
+    CS.Professions.CheckCooldownAfterUse(279967, cooldownOptions(clock, 0, 0))
+    local start, duration = CS.Professions.GetFeatureCooldown(279967, cooldownOptions(clock, 990, 3600))
+    assert(start == 990 and duration == 3600)
+end
+
 -- Craft: DI, same style as EvaluateFeature/BuildRequestMessage. Two-click
 -- sequence per docs/craft-profession-switch-findings.md Rounds 14-16:
 -- first click OpenRecipe only, second click (frame still shown) does
