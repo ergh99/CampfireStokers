@@ -15,4 +15,5 @@ Professions.lua
 UI.lua
 Launcher.lua
 Options.lua
+Tutorial.lua
 Core.lua

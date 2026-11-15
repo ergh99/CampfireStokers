@@ -161,7 +161,9 @@ for real isn't worth it; UI.lua's auto-open/auto-close timing (a real
 C_Timer.NewTimer countdown) falls in the same manual-only bucket for the
 same reason. `tests/options_spec.lua`'s `FindDropIndex` drag-reorder math
 is the one piece of either module's logic simple and pure enough to be
-headless-tested. WoWUnit is used for that in-client exploratory/self-test
+headless-tested. Tutorial.lua follows the same split: its due/seen state
+and step lists are headless-tested (`tests/tutorial_spec.lua`), while the
+welcome card, the callout frame and its event wiring are in-client only. WoWUnit is used for that in-client exploratory/self-test
 work (see the self-test and
 simulate-campfire subcommands added in the "in-client verification"
 milestone). If you add a WoWUnit test group, list it in

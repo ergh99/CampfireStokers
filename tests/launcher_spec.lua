@@ -9,6 +9,7 @@ local function loadLauncher()
         Data = { L = { ui_selftest_title = "Campfire Stokers Self-Test" } },
         Detection = { CAMPFIRE_SPELL_ID = 0, TUTORIAL_CAMPFIRE_SPELL_ID = 0, Simulate = function() end },
         UI = { Toggle = function() end, ShowTextPopup = function() end },
+        Tutorial = { Replay = function() end, ResetAll = function() end },
     }
     -- The real module, not a stub: the "emote command globals" selftest
     -- check calls CS.Send.FindEmoteToken directly (see Launcher.lua's
@@ -189,6 +190,31 @@ tests["an unknown subcommand is reported, not silently ignored"] = function()
     SlashCmdList.CAMPFIRESTOKERS("dance")
     restore()
     assert(#lines == 1 and lines[1]:find("unknown", 1, true) ~= nil)
+end
+
+tests["tutorial replays the welcome card, and tutorial reset clears the tutorial"] = function()
+    local CS = loadLauncher()
+    local replays, resets = 0, 0
+    CS.Tutorial.Replay = function()
+        replays = replays + 1
+    end
+    CS.Tutorial.ResetAll = function()
+        resets = resets + 1
+    end
+
+    SlashCmdList.CAMPFIRESTOKERS("tutorial")
+    assert(replays == 1 and resets == 0)
+
+    SlashCmdList.CAMPFIRESTOKERS("Tutorial RESET")
+    assert(replays == 1 and resets == 1)
+end
+
+tests["the unknown-command hint mentions tutorial"] = function()
+    loadLauncher()
+    local lines, restore = capturePrints()
+    SlashCmdList.CAMPFIRESTOKERS("bogus")
+    restore()
+    assert(#lines == 1 and lines[1]:find("tutorial", 1, true) ~= nil)
 end
 
 return tests

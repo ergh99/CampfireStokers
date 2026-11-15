@@ -77,6 +77,32 @@ local L = {
     ui_panel_style = "Panel style:",
     style_campfire = "Campfire",
     style_forever = "Forever",
+    ui_reset_tooltip = "Replace your whole phrase list with the starter set, or bring back only the defaults you deleted.",
+    ui_replay_tutorial = "Replay Tutorial",
+
+    -- The first-run tutorial (Tutorial.lua): the welcome card, then the
+    -- editor and panel tours' callouts.
+    tutorial_welcome_title = "Welcome to Campfire Stokers",
+    tutorial_welcome_body = "Pull up a seat by the fire, traveler! Campfires are where strangers turn into friends, and I've brought a few good opening lines to get you talking.\n\nCome on, I'll show you around. It only takes a minute.",
+    tutorial_welcome_hint = "Open the panel anytime with /campfire. /campfire tutorial replays this.",
+    tutorial_welcome_after_combat = "Starts as soon as combat ends.",
+    tutorial_welcome_primary = "Show me around",
+    tutorial_welcome_later = "Maybe later",
+    tutorial_next = "Next",
+    tutorial_done = "Done",
+    tutorial_editor_add_category = "Start your own category here.",
+    tutorial_editor_category_actions = "Hover any row to rename it, add phrases to it, or delete it.",
+    tutorial_editor_phrase_actions = "Edit any phrase. Put %t in one to say your target's name.",
+    tutorial_editor_drag = "Drag rows to reorder.",
+    tutorial_panel_phrase = "Click a phrase to send it.",
+    tutorial_panel_features = "Place, craft, or ask the fire for materials. Hover one to see what it will do.",
+    tutorial_panel_editor_offer = "Every word here is yours to change. Rewrite, rename, reorder or delete any phrase or category, and add as many of your own as you like.",
+    tutorial_panel_editor_offer_button = "Open Editor",
+    tutorial_editor_after_combat = "The editor opens as soon as combat ends.",
+    tutorial_editor_open_failed = "The editor couldn't be opened from here. It's in Settings > AddOns > Campfire Stokers.",
+    tutorial_after_combat = "Campfire Stokers: the tutorial will open when combat ends.",
+    tutorial_reset_done = "Campfire Stokers: tutorial reset. /reload to see it as on a first install.",
+    tutorial_error = "Campfire Stokers: the tutorial couldn't be shown. Type /campfire tutorial to try again.",
 
     -- Campfire features (tier 1 only - see docs/definition.md's
     -- Future Scope section). One per profession except Cooking, which

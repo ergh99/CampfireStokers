@@ -15,6 +15,9 @@ local canvas
 local rowPool = {}
 local activeRows = {}
 local draggedContext
+-- The node id whose row keeps its hover-only actions showing regardless of
+-- the cursor, for the first-run editor tour (see PinRowActions).
+local pinnedRowId
 
 -- Pure: given the current top-to-bottom on-screen rects ({top=, bottom=},
 -- in the same coordinate space as :GetTop()/:GetBottom()) of a row's
@@ -33,6 +36,19 @@ function CS.Options.FindDropIndex(rects, draggedIndex, dropY)
         end
     end
     return index
+end
+
+-- Shows a row's hover-only widgets while the cursor is over the row or one
+-- of its buttons, or while the row is pinned.
+local function applyHoverState(row)
+    local shown = (row.nodeId ~= nil and row.nodeId == pinnedRowId)
+        or row:IsMouseOver()
+        or row.button1:IsMouseOver()
+        or row.button2:IsMouseOver()
+        or row.button3:IsMouseOver()
+    for _, widget in ipairs(row.hoverWidgets or {}) do
+        widget:SetShown(shown)
+    end
 end
 
 local function acquireRow()
@@ -94,17 +110,7 @@ local function acquireRow()
         -- :IsMouseOver() on the whole group is checked fresh each time
         -- instead of trusting which single widget's event just fired.
         local function updateHover()
-            local hovered = row:IsMouseOver()
-                or row.button1:IsMouseOver()
-                or row.button2:IsMouseOver()
-                or row.button3:IsMouseOver()
-            for _, widget in ipairs(row.hoverWidgets or {}) do
-                if hovered then
-                    widget:Show()
-                else
-                    widget:Hide()
-                end
-            end
+            applyHoverState(row)
         end
         row:SetScript("OnEnter", updateHover)
         row:SetScript("OnLeave", updateHover)
@@ -133,6 +139,8 @@ local function acquireRow()
     row.button3:Hide()
     row.button3:SetScript("OnClick", nil)
     row.dragContext = nil
+    row.nodeId = nil
+    row.kind = nil
     row.hoverWidgets = {}
     row:SetScript("OnMouseUp", nil)
     row:Show()
@@ -228,6 +236,8 @@ local function layoutCategoryRow(row, category, y)
     row.label:SetTextColor(1, 0.82, 0) -- WoW's standard header gold
     row.label:SetText(category.name)
     row.hoverWidgets = { row.dragHandle, row.button1, row.button2, row.button3 }
+    row.nodeId = category.id
+    row.kind = "category"
     row:SetScript("OnMouseUp", function(_, button)
         if button == "LeftButton" then
             if collapsed then
@@ -288,6 +298,8 @@ local function layoutPhraseRow(row, phrase, y)
         row.label:SetTextColor(0.7, 0.35, 0.35)
     end
     row.hoverWidgets = { row.dragHandle, row.button1, row.button2 }
+    row.nodeId = phrase.id
+    row.kind = "phrase"
 end
 
 function CS.Options.HandleDragStop()
@@ -364,6 +376,84 @@ function CS.Options.Refresh()
     end
 
     canvas.rowContainer:SetHeight(math.max(-y, ROW_HEIGHT))
+
+    for _, row in ipairs(activeRows) do
+        applyHoverState(row)
+    end
+end
+
+-- Keeps the row for node `rowId` showing its hover-only actions (Rename /
+-- Add Phrase / Delete, or Edit / Delete, and the drag handle) while `on`,
+-- so a tour step can point at them. One row at a time; survives Refresh.
+function CS.Options.PinRowActions(rowId, on)
+    if on then
+        pinnedRowId = rowId
+    elseif pinnedRowId == rowId then
+        pinnedRowId = nil
+    end
+    for _, row in ipairs(activeRows) do
+        applyHoverState(row)
+    end
+end
+
+function CS.Options.IsShown()
+    return canvas ~= nil and canvas:IsVisible()
+end
+
+local function firstRowOfKind(kind)
+    for _, row in ipairs(activeRows) do
+        if row.kind == kind and row:IsShown() then
+            return row
+        end
+    end
+end
+
+local TOUR_ROW_ANCHORS = {
+    categoryActions = { kind = "category", region = "button2" }, -- Rename, the middle action
+    phraseActions = { kind = "phrase", region = "button2" }, -- Edit
+    dragHandle = { kind = "phrase", region = "dragHandle" },
+}
+
+-- The editor regions the first-run tour points at (see Tutorial.lua), or
+-- nil when the editor isn't showing or there's no such row. `name`:
+-- addCategory, or one of TOUR_ROW_ANCHORS. With `pin`, the row is pinned
+-- (PinRowActions) so its hover-only target is visible, and the second
+-- return unpins it; without, nothing changes - for checking whether a
+-- step applies.
+function CS.Options.GetTourAnchor(name, pin)
+    if not CS.Options.IsShown() then
+        return nil
+    end
+    if name == "addCategory" then
+        return canvas.addCategoryButton
+    end
+    local spec = TOUR_ROW_ANCHORS[name]
+    local row = spec and firstRowOfKind(spec.kind)
+    if not row then
+        return nil
+    end
+    if not pin then
+        return row
+    end
+    local rowId = row.nodeId
+    CS.Options.PinRowActions(rowId, true)
+    return row[spec.region], function()
+        CS.Options.PinRowActions(rowId, false)
+    end
+end
+
+-- Opens Settings at this add-on's editor. Returns whether it asked the
+-- Settings panel to open. Not attempted in combat, where opening Blizzard's
+-- Settings panel from add-on code isn't safe to assume.
+function CS.Options.Open()
+    if not (canvas and canvas.category) or InCombatLockdown() then
+        return false
+    end
+    local ok, err = pcall(Settings.OpenToCategory, canvas.category:GetID())
+    if not ok then
+        CS.Debug("Settings.OpenToCategory failed: " .. tostring(err))
+    end
+    return ok
 end
 
 local function registerPopups()
@@ -464,6 +554,7 @@ function CS.Options.CreateCanvas()
     end
 
     local addCategoryButton = CreateFrame("Button", nil, canvas, "UIPanelButtonTemplate")
+    canvas.addCategoryButton = addCategoryButton
     addCategoryButton:SetSize(120, 22)
     addCategoryButton:SetPoint("TOPLEFT", styleLabel, "BOTTOMLEFT", 0, -20)
     addCategoryButton:SetText(CS.Data.L.ui_add_category)
@@ -493,6 +584,23 @@ function CS.Options.CreateCanvas()
     resetButton:SetScript("OnClick", function()
         StaticPopup_Show("CAMPFIRESTOKERS_RESET_CONFIRM")
     end)
+    resetButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(CS.Data.L.ui_reset_defaults)
+        GameTooltip:AddLine(CS.Data.L.ui_reset_tooltip, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    resetButton:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    local replayButton = CreateFrame("Button", nil, canvas, "UIPanelButtonTemplate")
+    replayButton:SetSize(140, 22)
+    replayButton:SetPoint("LEFT", resetButton, "RIGHT", 8, 0)
+    replayButton:SetText(CS.Data.L.ui_replay_tutorial)
+    replayButton:SetScript("OnClick", function()
+        CS.Tutorial.Replay()
+    end)
 
     canvas.scrollFrame = CreateFrame("ScrollFrame", nil, canvas, "UIPanelScrollFrameTemplate")
     canvas.scrollFrame:SetPoint("TOPLEFT", addCategoryButton, "BOTTOMLEFT", 0, -16)
@@ -505,6 +613,10 @@ function CS.Options.CreateCanvas()
 
     canvas:SetScript("OnShow", function()
         CS.Options.Refresh()
+        -- A pending editor tour starts here, however the editor was
+        -- opened ("Make it yours", the panel tour's offer, or by hand
+        -- after either couldn't open Settings itself).
+        CS.Tutorial.OnEditorShown()
     end)
 
     -- Settings.RegisterCanvasLayoutCategory is a newer retail API; Forever's
@@ -513,8 +625,12 @@ function CS.Options.CreateCanvas()
     -- verification, not an assumption). pcall-wrapped so a mismatch here
     -- doesn't take down the rest of the add-on.
     local ok, err = pcall(function()
+        -- The category keeps the numeric ID Blizzard assigns it: Forever's
+        -- Settings.OpenToCategory passes it to C_SettingsUtil.
+        -- OpenSettingsPanel, which accepts only a number (Gethe/wow-ui-source,
+        -- forever branch, SettingsUtilDocumentation.lua). Overwriting it with
+        -- a string, as this once did, made opening the editor from code throw.
         local category = Settings.RegisterCanvasLayoutCategory(canvas, canvas.name)
-        category.ID = "CampfireStokers"
         Settings.RegisterAddOnCategory(category)
         canvas.category = category
     end)

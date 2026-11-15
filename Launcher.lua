@@ -196,10 +196,18 @@ local function handleSlashCommand(msg)
         runSelfTest()
     elseif command == "simulate" then
         runSimulate(rest)
+    elseif command == "tutorial" then
+        -- `reset` is for testing: the next /reload behaves like a first
+        -- install.
+        if rest:lower() == "reset" then
+            CS.Tutorial.ResetAll()
+        else
+            CS.Tutorial.Replay()
+        end
     elseif command == "" then
         CS.UI.Toggle()
     else
-        print("Campfire Stokers: unknown command '" .. command .. "'. Try selftest or simulate on|off.")
+        print("Campfire Stokers: unknown command '" .. command .. "'. Try selftest, simulate on|off, or tutorial.")
     end
 end
 

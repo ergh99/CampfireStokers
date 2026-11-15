@@ -80,6 +80,12 @@ read_globals = {
     "ProfessionsFrame",
     "C_Container",
     "GetTime",
+
+    -- Tutorial.lua. UISpecialFrames gets the welcome card's name inserted
+    -- (Esc closes it) - a table.insert, not a field write. PLAYER_LOGIN
+    -- and PLAYER_REGEN_ENABLED are events, not globals. Deliberately no
+    -- HelpTip or GetCVarBool: see docs/tutorial-plan.md.
+    "UISpecialFrames",
 }
 
 -- tests/ mocks real WoW API globals by assigning directly over them (e.g.

@@ -49,10 +49,27 @@ local function makeProfessionsStub()
     return professions
 end
 
+-- Same reasoning again: Tutorial.Init registers real events and later
+-- builds frames; its pure logic has its own spec (tutorial_spec.lua).
+-- Core.lua only has to call Init once, after bootstrapping the db.
+local function makeTutorialStub()
+    local tutorial = { initCalls = 0 }
+    tutorial.Init = function()
+        tutorial.initCalls = tutorial.initCalls + 1
+        tutorial.dbAtInit = _G.CampfireStokersDB
+    end
+    return tutorial
+end
+
 local function loadCoreWithDependencies()
     local capturedFrame
 
-    local CS = { UI = makeUIStub(), Options = makeOptionsStub(), Professions = makeProfessionsStub() }
+    local CS = {
+        UI = makeUIStub(),
+        Options = makeOptionsStub(),
+        Professions = makeProfessionsStub(),
+        Tutorial = makeTutorialStub(),
+    }
     loadModule("Data.lua", "CampfireStokers", CS)
     loadModule("Tree.lua", "CampfireStokers", CS)
     loadModule("Send.lua", "CampfireStokers", CS)
@@ -102,6 +119,8 @@ tests["ADDON_LOADED for this addon bootstraps CampfireStokersDB and wires Detect
     assert(#_G.CampfireStokersDB.tree == 5, "bootstrap should have deep-copied DefaultTree in")
     assert(CS.UI.createPanelCalls == 1, "Core.lua must create the panel exactly once on load")
     assert(CS.Options.createCanvasCalls == 1, "Core.lua must create the options canvas exactly once on load")
+    assert(CS.Tutorial.initCalls == 1, "Core.lua must initialize the tutorial exactly once on load")
+    assert(type(CS.Tutorial.dbAtInit) == "table", "the tutorial must be initialized after the db is bootstrapped")
     assert(CS.Professions.createEventFrameCalls == 1,
         "Core.lua must create the professions event frame exactly once on load")
     assert(CS.Professions.warmItemCacheCalls == 1,

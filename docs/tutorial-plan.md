@@ -18,6 +18,13 @@ which has its own brief, [feature-recipe-gate-plan.md](feature-recipe-gate-plan.
 4. When approved, add the checklist at the end to [tasks.md](tasks.md)
    as T11.
 
+> **Revised 2026-11-14** after the first in-client look: the welcome card
+> is now a short greeting whose **Show me** opens the real panel and tours
+> it, leading into the editor tour; "Make it yours" and the three-point
+> card text are gone. See decision-log.md, "First-run tutorial: opening
+> the editor, and the welcome card". The sections below are the original
+> plan.
+
 ## Goal
 
 Teach a new player how to make the phrase tree their own, then how to use

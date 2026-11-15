@@ -20,6 +20,7 @@ Known deviations from retail that affect this add-on:
 
 - Registering an unknown event throws, so non-core events such as ADDON_RESTRICTION_STATE_CHANGED are registered inside a pcall.
 - ReloadUI is protected, so the options panel refreshes the phrase tree in place and never calls it.
+- HelpPlate's "?" button is disabled: `Blizzard_HelpPlate/Camelot/HelpPlateOverrides.lua` on the `forever` branch of Gethe/wow-ui-source hides it on show, so the add-on doesn't use HelpPlate. It doesn't use HelpTip either, since HelpTip honors the client's `hideHelptips` setting with no override (see docs/tutorial-best-practices.md).
 
 ## Features
 
@@ -31,6 +32,7 @@ Known deviations from retail that affect this add-on:
 4. Bootstrapped starter content: on first load, the add-on seeds a default tree so the panel is immediately useful, five categories (Icebreakers, Trading, Professions, Info & Advice and Emotes), listed under Default Starter Content.
 5. Manual override: an addon compartment entry and a slash command to open the panel on demand, regardless of campfire state, for players who want to use phrases away from a fire.
 6. Secret-value-safe detection: campfire state is driven by UNIT_AURA events and read only when the client reports aura data as readable, with no polling.
+7. First-run tutorial: shown once to everyone, including players upgrading with saved data. A short welcome card appears a few seconds after login (after combat, if logging in mid-fight) in the active panel style. Its "Show me around" button opens the real panel, wherever the player is, and points at its parts with callouts (click a phrase, and the campfire feature buttons if any show), then offers the editor, which opens in Settings with a four-step tour of its real controls (Add Category, a category row's actions, a phrase row's actions and %t, drag to reorder). If the player picks "Maybe later", the panel tour runs the first time the panel auto-opens at a campfire instead, ending with the same editor offer if the editor tour hasn't run. Callouts are the add-on's own frame and ignore the client's Tutorials setting. `/campfire tutorial` and a Replay Tutorial button in the editor replay the card; `/campfire tutorial reset` makes the next login behave like a first install.
 
 Out of scope for v1: whispers, chat channels other than Say, Yell and emote, import and export, profiles, and a hover tooltip on the addon compartment entry.
 
@@ -96,7 +98,7 @@ The repository includes an AGENTS.md guidance file with four parts: Lua 5.1 and 
 
 The Interface line is 16001 for the current Forever build, confirmed in-client by printing the fourth return value of GetBuildInfo(), and updated if the number changes. Use the client's own number rather than a value copied from a retail add-on.
 
-A representative TOC: an Interface line with the confirmed number, Title Campfire Stokers, Notes describing the one-click phrase panel, Author, Version, IconTexture, the AddonCompartmentFunc field naming a global click handler in Launcher.lua, and SavedVariables CampfireStokersDB for the account-wide phrase tree. The load order lists Data.lua, Tree.lua, Send.lua, Detection.lua, UI.lua, Launcher.lua, Options.lua, and Core.lua last, matching the dependency direction of the modules.
+A representative TOC: an Interface line with the confirmed number, Title Campfire Stokers, Notes describing the one-click phrase panel, Author, Version, IconTexture, the AddonCompartmentFunc field naming a global click handler in Launcher.lua, and SavedVariables CampfireStokersDB for the account-wide phrase tree. The load order lists Data.lua, Tree.lua, Send.lua, Detection.lua, Professions.lua, UI.lua, Launcher.lua, Options.lua, Tutorial.lua, and Core.lua last, matching the dependency direction of the modules.
 
 ## UI and UX
 
@@ -110,7 +112,7 @@ The options panel, opened through the standard Blizzard Settings interface under
 
 ## Saved Variables and Persistence
 
-CampfireStokersDB is declared account-wide in the TOC's SavedVariables line, so a player's customized phrase tree follows them across characters and realms. It stores the phrase tree itself, the schemaVersion for future migrations, the ids of any default nodes the player has deleted, per-category collapsed or expanded state, the panel's last screen position, and the Say or Yell toggle state.
+CampfireStokersDB is declared account-wide in the TOC's SavedVariables line, so a player's customized phrase tree follows them across characters and realms. It stores the phrase tree itself, the schemaVersion for future migrations, the ids of any default nodes the player has deleted, per-category collapsed or expanded state, the panel's last screen position, the Say or Yell toggle state, the panel style, and the tutorial's progress (`tutorial`: an integer version plus one boolean each for the welcome card, the editor tour, the panel tour and the feature step). A missing tutorial table, or one written under an older tutorial version, means every part is due again.
 
 Every category and phrase in DefaultTree carries a stable id. Migrations are additive: on load, if schemaVersion is older than the add-on's current version, a migration function walks DefaultTree and adds any default category or phrase whose id is missing from the saved tree, without touching existing player edits, then bumps schemaVersion. The ids of default nodes the player has deleted are recorded, and migrations never restore them.
 

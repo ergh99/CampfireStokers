@@ -1260,3 +1260,34 @@ panel at its old spot. `DEFAULT_CHAT_FRAME` is no longer read.
 
 In-client confirmation of the dropdown and portrait template on Forever
 wasn't recorded at the time.
+
+## 2026-11-14 — First-run tutorial: opening the editor, and the welcome card
+
+**Finding (in-client, first look at T11).** Clicking the welcome
+card's "Make it yours" didn't open the editor; the fallback chat line
+printed instead. Cause, confirmed from Forever's UI source (Gethe/wow-ui-source,
+`forever` branch): `Settings.OpenToCategory` calls
+`C_SettingsUtil.OpenSettingsPanel`, whose documented argument is a
+**number** category ID (`SettingsUtilDocumentation.lua`), and each
+category's ID is a counter assigned at creation (`Blizzard_Category.lua`).
+Options.lua had overwritten our category's `ID` with the string
+`"CampfireStokers"` back in T8, so the call threw. Fix: the override is
+gone and `CS.Options.Open` passes `category:GetID()`. Re-confirming the
+editor now opens is V1.
+
+**Decision (project owner).** The welcome card described things the
+player hadn't seen yet ("the panel", "campfire features") with no
+visuals, and on failure sent the player off to find the editor
+themselves. Replaced with "show, don't tell":
+
+- The card is a short greeting with **Show me** and **Later**.
+- **Show me** opens the real panel right away, at a fire or not, and
+  runs the panel tour on it. That tour always ends by offering the
+  editor, and **Open Editor** goes straight into the editor tour in
+  Settings. This reverses the plan's "opening the panel manually isn't
+  a step" decision.
+- **Later** keeps the original behavior: the panel tour runs at the
+  first campfire auto-open.
+- No step sends the player to chat. Clicked mid-fight, Show me and Open
+  Editor say so in place and run when combat ends. If Settings still
+  can't open, the callout itself says where the editor is.

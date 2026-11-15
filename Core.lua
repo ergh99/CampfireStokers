@@ -11,6 +11,9 @@ frame:SetScript("OnEvent", function(_, event, loadedAddonName)
     end
 
     CampfireStokersDB = CS.Tree.Bootstrap(CampfireStokersDB)
+    -- Before the panel exists: Detection.Refresh below can auto-open it,
+    -- and the tutorial has to know by then whether its welcome card is due.
+    CS.Tutorial.Init()
 
     CS.UI.CreatePanel()
     CS.Options.CreateCanvas()

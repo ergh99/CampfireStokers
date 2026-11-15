@@ -872,6 +872,10 @@ function CS.UI.OnCampfireStateChanged(atFire)
         if not frame:IsShown() then
             CS.UI.isAutoOpened = true
             frame:Show()
+            -- The first-run panel tour. It reads the panel's own frames
+            -- only (the campfire boolean got us here, never aura data) and
+            -- guards its own errors.
+            CS.Tutorial.OnPanelAutoOpened()
         end
     elseif CS.UI.isAutoOpened then
         cancelPendingHide()
@@ -881,6 +885,188 @@ function CS.UI.OnCampfireStateChanged(atFire)
             CS.UI.isAutoOpened = false
         end)
     end
+end
+
+-- The campfire style's background and wood border, built on `target`
+-- (the panel, or a styled window such as the welcome card). Returns the
+-- pieces, for the caller's chrome list.
+local function buildCampfireArt(target)
+    -- Not a backdrop background: a backdrop's background color multiplies
+    -- its texture, so it can lower opacity but never raise it - the cause
+    -- of the once see-through panel and of the text popups' old
+    -- transparency (see addOpaqueUnderlay). Drawn as its own layers
+    -- instead: an opaque solid color, then the darkened parchment over it.
+    local backgroundFill = target:CreateTexture(nil, "BACKGROUND", nil, -8)
+    backgroundFill:SetPoint("TOPLEFT", target, "TOPLEFT", -WOOD_UNDERLAP, WOOD_UNDERLAP)
+    backgroundFill:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", WOOD_UNDERLAP, -WOOD_UNDERLAP)
+    backgroundFill:SetColorTexture(unpack(LOOKS.campfire.background))
+
+    local backgroundParchment = target:CreateTexture(nil, "BACKGROUND", nil, -7)
+    backgroundParchment:SetAllPoints(backgroundFill)
+    backgroundParchment:SetTexture(BACKGROUND_TEXTURE)
+    backgroundParchment:SetVertexColor(unpack(LOOKS.campfire.backgroundTexture))
+
+    -- The wood sits in a clipping frame inset by WOOD_RIM, which trims the
+    -- texture's metal rim off its outer edge. Both are above the panel's
+    -- rows so their edges tuck under the wood, and neither is
+    -- mouse-enabled, so they never block a click. Clipping is feature-
+    -- tested rather than assumed: without it the panel still works, just
+    -- with the rim showing.
+    local woodClip = CreateFrame("Frame", nil, target)
+    woodClip:SetPoint("TOPLEFT", target, "TOPLEFT", -WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET)
+    woodClip:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", WOOD_VISIBLE_OUTSET, -WOOD_VISIBLE_OUTSET)
+    woodClip:SetFrameLevel(target:GetFrameLevel() + 10)
+    if woodClip.SetClipsChildren then
+        woodClip:SetClipsChildren(true)
+    end
+
+    local woodBorder = CreateFrame("Frame", nil, woodClip, "BackdropTemplate")
+    woodBorder:SetPoint("TOPLEFT", target, "TOPLEFT", -WOOD_OUTSET, WOOD_OUTSET)
+    woodBorder:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", WOOD_OUTSET, -WOOD_OUTSET)
+    woodBorder:SetBackdrop(WOOD_BORDER)
+
+    for _, corner in ipairs({ "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }) do
+        local cap = woodBorder:CreateTexture(nil, "OVERLAY")
+        cap:SetSize(WOOD_CORNER_CAP, WOOD_CORNER_CAP)
+        cap:SetPoint(corner, woodClip, corner)
+        cap:SetColorTexture(unpack(LOOKS.campfire.woodCorner))
+    end
+
+    return backgroundFill, backgroundParchment, woodClip
+end
+
+-- The Forever style's frame (Blizzard's portrait frame template) around
+-- `target`, titled `title`, its close button calling `onClose`. Returns
+-- it, or nil if it couldn't be built - the caller falls back to the
+-- campfire look.
+local function buildForeverChrome(target, title, onClose)
+    local chrome
+    local ok, err = pcall(function()
+        chrome = CreateFrame("Frame", nil, target, "PortraitFrameTemplate")
+        chrome:SetPoint("TOPLEFT", target, "TOPLEFT", -FOREVER_FRAME_OUTSET, 0)
+        chrome:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", FOREVER_FRAME_OUTSET, -FOREVER_FRAME_OUTSET)
+        chrome:SetFrameLevel(target:GetFrameLevel())
+        chrome:EnableMouse(false)
+        chrome:SetTitle(title)
+        chrome:SetPortraitToAsset("Interface/Icons/Spell_Fire_Fire")
+        -- The template's close button would hide only this chrome frame.
+        chrome.CloseButton:SetScript("OnClick", onClose)
+        chrome:Hide()
+    end)
+    if not ok then
+        -- A half-built frame (the template loaded, a mixin method didn't)
+        -- would otherwise stay on screen over the campfire look.
+        if chrome then
+            chrome:Hide()
+        end
+        print("Campfire Stokers: could not build the Forever panel style (" .. tostring(err) .. ").")
+        return nil
+    end
+    return chrome
+end
+
+-- Where a styled window's content starts, per style: below the campfire
+-- title area, or below the Forever frame's title bar and the round
+-- portrait hanging off its top-left corner.
+local WINDOW_INSETS = {
+    campfire = { top = CAMPFIRE_TITLE_AREA_HEIGHT + 10, left = 20, right = 20, bottom = 18 },
+    forever = { top = 66, left = 16, right = 16, bottom = 14 },
+}
+
+-- A small dialog-strata window dressed in the active panel style, for the
+-- welcome card. Movable, clamped, and closed by its own close button.
+-- `window:ApplyStyle()` shows the active style's chrome and returns its
+-- look (colors), and sets `window.contentInset` for laying out content;
+-- call it before each showing, since the style can change in between.
+-- The caller sets the height.
+function CS.UI.CreateStyledWindow(name, width, title)
+    local window = CreateFrame("Frame", name, UIParent)
+    window:SetSize(width, 200)
+    window:SetFrameStrata("DIALOG")
+    window:SetToplevel(true)
+    window:SetClampedToScreen(true)
+    window:SetMovable(true)
+    window:EnableMouse(true)
+    window:RegisterForDrag("LeftButton")
+    window:SetScript("OnDragStart", window.StartMoving)
+    window:SetScript("OnDragStop", window.StopMovingOrSizing)
+
+    local function close()
+        window:Hide()
+    end
+
+    local backgroundFill, backgroundParchment, woodClip = buildCampfireArt(window)
+
+    local titleText = window:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    titleText:SetPoint("CENTER", window, "TOP", 0, -(CAMPFIRE_TITLE_AREA_HEIGHT / 2))
+    titleText:SetText(title)
+    titleText:SetTextColor(unpack(LOOKS.campfire.header))
+
+    local titleDivider = window:CreateTexture(nil, "ARTWORK")
+    titleDivider:SetHeight(1)
+    titleDivider:SetPoint("TOPLEFT", window, "TOPLEFT", DIVIDER_INSET, -CAMPFIRE_TITLE_AREA_HEIGHT + 2)
+    titleDivider:SetPoint("TOPRIGHT", window, "TOPRIGHT", -DIVIDER_INSET, -CAMPFIRE_TITLE_AREA_HEIGHT + 2)
+    titleDivider:SetColorTexture(unpack(LOOKS.campfire.divider))
+
+    local closeButton = CreateFrame("Button", nil, window, "UIPanelCloseButton")
+    local closeOffset = CAMPFIRE_TITLE_AREA_HEIGHT / 2 + CLOSE_BUTTON_EXTRA_PADDING
+    closeButton:SetPoint("CENTER", window, "TOPRIGHT", -closeOffset, -closeOffset)
+    closeButton:SetScript("OnClick", close)
+
+    local campfirePieces = { backgroundFill, backgroundParchment, woodClip, titleText, titleDivider, closeButton }
+    local chrome = buildForeverChrome(window, title, close)
+
+    function window:ApplyStyle()
+        local useForever = CampfireStokersDB.panelStyle == "forever" and chrome ~= nil
+        for _, piece in ipairs(campfirePieces) do
+            piece:SetShown(not useForever)
+        end
+        if chrome then
+            chrome:SetShown(useForever)
+        end
+        if useForever then
+            self:SetClampRectInsets(-FOREVER_FRAME_OUTSET, FOREVER_FRAME_OUTSET, FOREVER_PORTRAIT_OVERHANG,
+                -FOREVER_FRAME_OUTSET)
+            self.contentInset = WINDOW_INSETS.forever
+            return LOOKS.forever
+        end
+        self:SetClampRectInsets(-WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET,
+            -WOOD_VISIBLE_OUTSET)
+        self.contentInset = WINDOW_INSETS.campfire
+        return LOOKS.campfire
+    end
+
+    window:Hide()
+    return window
+end
+
+-- The panel frames the first-run tour points at (see Tutorial.lua), or nil
+-- when the panel is hidden or that frame isn't showing. `name`:
+--   firstPhrase  the first phrase row
+--   firstFeature the first visible campfire feature button
+--   panel        the panel itself
+-- No pinning on the panel, so the second return is always nil.
+function CS.UI.GetTourAnchor(name)
+    if not frame or not frame:IsShown() then
+        return nil
+    end
+    if name == "firstPhrase" then
+        for _, row in ipairs(activeRows) do
+            if row.phrase and row:IsShown() then
+                return row
+            end
+        end
+    elseif name == "firstFeature" then
+        for _, entry in ipairs(CS.Professions.FEATURES) do
+            local button = professionButtons[entry.id]
+            if button and button:IsShown() then
+                return button
+            end
+        end
+    elseif name == "panel" then
+        return frame
+    end
+    return nil
 end
 
 local textPopup
@@ -1107,46 +1293,7 @@ function CS.UI.CreatePanel()
     frame = CreateFrame("Frame", "CampfireStokersPanel", UIParent)
     frame:SetSize(PANEL_WIDTH, minPanelHeight())
 
-    -- Not a backdrop background: a backdrop's background color multiplies
-    -- its texture, so it can lower opacity but never raise it - the cause
-    -- of the once see-through panel and of the text popups' old
-    -- transparency (see addOpaqueUnderlay). Drawn as its own layers
-    -- instead: an opaque solid color, then the darkened parchment over it.
-    local backgroundFill = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
-    backgroundFill:SetPoint("TOPLEFT", frame, "TOPLEFT", -WOOD_UNDERLAP, WOOD_UNDERLAP)
-    backgroundFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", WOOD_UNDERLAP, -WOOD_UNDERLAP)
-    backgroundFill:SetColorTexture(unpack(LOOKS.campfire.background))
-
-    local backgroundParchment = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
-    backgroundParchment:SetAllPoints(backgroundFill)
-    backgroundParchment:SetTexture(BACKGROUND_TEXTURE)
-    backgroundParchment:SetVertexColor(unpack(LOOKS.campfire.backgroundTexture))
-
-    -- The wood sits in a clipping frame inset by WOOD_RIM, which trims the
-    -- texture's metal rim off its outer edge. Both are above the panel's
-    -- rows so their edges tuck under the wood, and neither is
-    -- mouse-enabled, so they never block a click. Clipping is feature-
-    -- tested rather than assumed: without it the panel still works, just
-    -- with the rim showing.
-    local woodClip = CreateFrame("Frame", nil, frame)
-    woodClip:SetPoint("TOPLEFT", frame, "TOPLEFT", -WOOD_VISIBLE_OUTSET, WOOD_VISIBLE_OUTSET)
-    woodClip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", WOOD_VISIBLE_OUTSET, -WOOD_VISIBLE_OUTSET)
-    woodClip:SetFrameLevel(frame:GetFrameLevel() + 10)
-    if woodClip.SetClipsChildren then
-        woodClip:SetClipsChildren(true)
-    end
-
-    local woodBorder = CreateFrame("Frame", nil, woodClip, "BackdropTemplate")
-    woodBorder:SetPoint("TOPLEFT", frame, "TOPLEFT", -WOOD_OUTSET, WOOD_OUTSET)
-    woodBorder:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", WOOD_OUTSET, -WOOD_OUTSET)
-    woodBorder:SetBackdrop(WOOD_BORDER)
-
-    for _, corner in ipairs({ "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }) do
-        local cap = woodBorder:CreateTexture(nil, "OVERLAY")
-        cap:SetSize(WOOD_CORNER_CAP, WOOD_CORNER_CAP)
-        cap:SetPoint(corner, woodClip, corner)
-        cap:SetColorTexture(unpack(LOOKS.campfire.woodCorner))
-    end
+    local backgroundFill, backgroundParchment, woodClip = buildCampfireArt(frame)
 
     -- The clamp insets depend on the style's border; applyStyle sets them.
     frame:SetClampedToScreen(true)
@@ -1268,28 +1415,7 @@ function CS.UI.CreatePanel()
     -- the template nor its mixin methods are confirmed on Forever yet, so
     -- it's built under pcall; if it fails, the Forever style falls back to
     -- the campfire look (see applyStyle).
-    local chrome
-    local ok, err = pcall(function()
-        chrome = CreateFrame("Frame", nil, frame, "PortraitFrameTemplate")
-        chrome:SetPoint("TOPLEFT", frame, "TOPLEFT", -FOREVER_FRAME_OUTSET, 0)
-        chrome:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", FOREVER_FRAME_OUTSET, -FOREVER_FRAME_OUTSET)
-        chrome:SetFrameLevel(frame:GetFrameLevel())
-        chrome:EnableMouse(false)
-        chrome:SetTitle(CS.Data.L.ui_panel_title)
-        chrome:SetPortraitToAsset("Interface/Icons/Spell_Fire_Fire")
-        -- The template's close button would hide only this chrome frame.
-        chrome.CloseButton:SetScript("OnClick", CS.UI.Hide)
-        chrome:Hide()
-        foreverChrome = chrome
-    end)
-    if not ok then
-        -- A half-built frame (the template loaded, a mixin method didn't)
-        -- would otherwise stay on screen over the campfire look.
-        if chrome then
-            chrome:Hide()
-        end
-        print("Campfire Stokers: could not build the Forever panel style (" .. tostring(err) .. ").")
-    end
+    foreverChrome = buildForeverChrome(frame, CS.Data.L.ui_panel_title, CS.UI.Hide)
 
     -- Say/Yell as a two-state segmented control (both options always
     -- visible, the active one locked-highlighted) instead of one button
