@@ -1291,3 +1291,22 @@ themselves. Replaced with "show, don't tell":
 - No step sends the player to chat. Clicked mid-fight, Show me and Open
   Editor say so in place and run when combat ends. If Settings still
   can't open, the callout itself says where the editor is.
+
+## 2026-11-15 — First-run tutorial verified in-client
+
+The project owner tested the tutorial in-game before releasing v1.1.0
+and confirmed every T11 item and all five checks from
+[tutorial-plan.md](tutorial-plan.md)'s "In-client verification":
+
+| # | Question | Result |
+| --- | --- | --- |
+| V1 | Does `Settings.OpenToCategory` open our editor? | Confirmed, with the numeric-ID fix from the entry above. |
+| V2 | Does the callout draw above `SettingsPanel` and stay on screen? | Confirmed (`FULLSCREEN_DIALOG` strata, clamped). |
+| V3 | Callout look | Accepted as shipped: tooltip backdrop with a gold border and the default UI's yellow tutorial arrow (`UI-MicroStream-Yellow`). |
+| V4 | Do pinned hover widgets stay visible through the editor tour and hide afterwards? | Confirmed. |
+| V5 | Do the card and tours still appear with `hideHelptips` set? | Confirmed. |
+
+Also changed after the first in-client look, before release: the card's
+text was rewritten in a guide's voice ("Show me around" / "Maybe
+later"), the panel tour's Say/Yell step was removed, and the editor
+offer now stresses full control over every phrase and category.

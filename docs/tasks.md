@@ -129,20 +129,20 @@ Depends on: T9.
 ## T11. First-run tutorial
 
 Depends on: T10. Design: [tutorial-plan.md](tutorial-plan.md). Code
-written 2026-11-14; the frame-side items are built but stay unchecked
-until confirmed in-client (V1-V5 below).
+written 2026-11-14; every item, and V1-V5, confirmed in-client by the
+project owner and shipped in v1.1.0 (2026-11-15).
 
 - [x] Tutorial.lua: pure due/seen/step logic plus `Init`, with headless tests (`tests/tutorial_spec.lua`).
 - [x] Saved state is `CampfireStokersDB.tutorial`, plain values only, and v0.1.0 saves see it once.
-- [ ] Welcome card after `PLAYER_LOGIN` + 3 s, combat-deferred, styled to match the panel, closable with Esc, X and Later, draggable and clamped.
-- [ ] "Show me" opens the real panel and tours it, then its Open Editor step opens the editor and runs the four-step editor tour with hover widgets pinned (revised 2026-11-14, see decision-log.md). Nothing sends the player to chat; mid-fight it waits for combat to end.
-- [ ] Reset to Defaults has a mouseover tooltip.
-- [ ] Panel tour on the first auto-open, after the card, skipping the feature step when no feature buttons show. It resumes if cut short.
-- [ ] The editor tour is offered at the end of the panel tour if it hasn't run.
-- [ ] Callouts are our own frame and ignore `hideHelptips`.
-- [ ] `/campfire tutorial`, `/campfire tutorial reset`, and a Replay button in Options. (Slash routing headless-tested.)
+- [x] Welcome card after `PLAYER_LOGIN` + 3 s, combat-deferred, styled to match the panel, closable with Esc, X and Maybe later, draggable and clamped.
+- [x] "Show me around" opens the real panel and tours it, then its Open Editor step opens the editor and runs the four-step editor tour with hover widgets pinned (revised 2026-11-14, see decision-log.md). Nothing sends the player to chat; mid-fight it waits for combat to end.
+- [x] Reset to Defaults has a mouseover tooltip.
+- [x] Panel tour on the first auto-open, after the card (no Say/Yell step, removed 2026-11-14), skipping the feature step when no feature buttons show. It resumes if cut short.
+- [x] The editor tour is offered at the end of the panel tour if it hasn't run.
+- [x] Callouts are our own frame and ignore `hideHelptips`.
+- [x] `/campfire tutorial`, `/campfire tutorial reset`, and a Replay button in Options. (Slash routing headless-tested.)
 - [x] Strings in `CS.Data.L`, globals in `.luacheckrc`, and luac/luacheck/tests/wow-secret-lint all pass.
-- [ ] V1-V5 confirmed in-client and recorded in decision-log.md. Definition.md updated (Features, Saved Variables, Known Deviations). (Definition.md done; V1-V5 pending.)
+- [x] V1-V5 confirmed in-client and recorded in decision-log.md. Definition.md updated (Features, Saved Variables, Known Deviations). (See decision-log.md, "First-run tutorial verified in-client".)
 
 ## Future Scope: Profession Campfire Enhancements
 
