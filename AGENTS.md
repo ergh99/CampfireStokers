@@ -173,8 +173,28 @@ being loaded, and don't let its presence change any production code path.
 Releasing: push an annotated tag matching `v*` (e.g. `v0.1.0`).
 `.github/workflows/release.yml` runs the BigWigs packager, which builds a
 zip named `CampfireStokers` (per `.pkgmeta`'s `package-as`) with `@project-version@`
-in the TOC substituted for the tag, and attaches it to a GitHub Release.
-Nothing under `docs/`, `tests/`, `.github/`, or `AGENTS.md` ships in the zip.
+in the TOC substituted for the tag, attaches it to a GitHub Release, and
+uploads the same zip to CurseForge. Nothing under `docs/`, `tests/`,
+`.github/`, or `AGENTS.md` ships in the zip.
+
+- **Release type comes from the tag name**: a tag containing `alpha` or
+  `beta` (e.g. `v1.2.0-beta1`) is uploaded to CurseForge as that type;
+  anything else is a full release.
+- **CurseForge configuration lives in the GitHub repo settings, not in
+  code**: the secret `CF_API_KEY` (the CurseForge upload API token) and the
+  variable `CF_PROJECT_ID` (the numeric project ID, public). The workflow's
+  first step fails the run if either is missing or the ID isn't numeric, so
+  a tag can never silently ship to GitHub only.
+- **The API token is a secret value**: never commit it, paste it into a
+  TOC field, a workflow file, a `/run` command or a chat log, or pass it on
+  a command line. It only reaches the workflow as an env var, which
+  GitHub masks in logs. If it leaks, revoke it at
+  https://wow.curseforge.com/account/api-tokens and replace the secret.
+- **Game version**: the packager maps the TOC's `## Interface: 16001` to
+  CurseForge game version `1.60.1` (seen in the v1.1.0 release log). The
+  packager uploads to CurseForge before GitHub, so if a future Interface
+  bump isn't recognized the run fails at the CurseForge upload; check both
+  sites for a partial release before re-tagging.
 
 **Resolved item, then fixed upstream**: `wow-secret-lint`'s TOC-based
 discovery used to skip this addon (16001 was misread as Classic, not

@@ -1,5 +1,18 @@
 name: Release
 
+# Pushing a v* tag builds the zip with the BigWigs packager and publishes it
+# to both GitHub Releases and CurseForge in one run.
+#
+# Required repository settings (Settings > Secrets and variables > Actions):
+#   - Secret   CF_API_KEY     CurseForge upload API token, from
+#                             https://wow.curseforge.com/account/api-tokens
+#   - Variable CF_PROJECT_ID  numeric CurseForge project ID (public, not secret)
+#
+# The token is only ever exposed as an env var (which GitHub masks in logs),
+# to the presence check and the packager step; it never goes on a command
+# line, into the TOC, or into the zip. The packager logs "[token set]"
+# rather than its value.
+
 on:
   push:
     tags:
@@ -8,12 +21,41 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   package:
     runs-on: ubuntu-latest
     steps:
+      # Fail before building anything if CurseForge isn't configured, so a
+      # tag never silently ships to GitHub only.
+      - name: Check CurseForge configuration
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          CF_PROJECT_ID: ${{ vars.CF_PROJECT_ID }}
+        run: |
+          if [ -z "$CF_API_KEY" ]; then
+            echo "::error::Repository secret CF_API_KEY is not set."
+            exit 1
+          fi
+          # The ID is passed to the packager as a command-line argument, so
+          # it must be strictly numeric (also rules out shell injection).
+          if ! printf '%s' "$CF_PROJECT_ID" | grep -Eq '^[0-9]+$'; then
+            echo "::error::Repository variable CF_PROJECT_ID must be set to the numeric CurseForge project ID."
+            exit 1
+          fi
+
+      # Full history so the packager's generated changelog covers every
+      # commit since the previous tag, not just the tagged commit.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: BigWigsMods/packager@e50a250f8705041e40f2fa1ddcb280a686d65aa0 # v2.6.1
+        with:
+          args: -p ${{ vars.CF_PROJECT_ID }}
         env:
-          GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
